@@ -1,0 +1,107 @@
+[
+  {
+    "id": "msc_chitra_khalijia3_mumbai_2010",
+    "incident_name": "MSC Chitra - Khalijia-3 collision / Mumbai oil spill",
+    "date": "2010-08-07",
+    "approx_time_local": "09:15",
+    "timezone": "Asia/Kolkata",
+    "region": "Mumbai coast",
+    "pilot_area": "gujarat_mumbai_coast",
+    "incident_type": "ship_collision_oil_spill",
+    "known_vessels": [
+      "MSC Chitra",
+      "Khalijia-3"
+    ],
+    "coordinates": [72.8200, 18.8644],
+    "notes": [
+      "Use as a historical validation and replay case for source attribution.",
+      "Sentinel-1 was not available in 2010, so SAR validation imagery for this incident must come from older missions such as ENVISAT ASAR, RADARSAT, TerraSAR-X, or official reports if accessible.",
+      "CDS/ERA5 can be used for wind reanalysis around the incident window, but ocean currents should come from Copernicus Marine or another ocean reanalysis product."
+    ],
+    "source_links": []
+  },
+  {
+    "id": "mt_jipro_neftis_mumbai_2018",
+    "incident_name": "MT Jipro Neftis — accidental bunker-oil spill",
+    "date": "2018-01-30",
+    "approx_time_local": "Unknown",
+    "timezone": "Asia/Kolkata",
+    "region": "Mumbai Outer Anchorage",
+    "pilot_area": "gujarat_mumbai_coast",
+    "incident_type": "bunker_spill",
+    "known_vessels": [
+      "MT Jipro Neftis"
+    ],
+    "coordinates": [72.8000, 18.9000],
+    "notes": [
+      "Official Lok Sabha record, 400-Litre spill.",
+      "Satellite data available via Sentinel-1 (Copernicus Data Space)."
+    ],
+    "source_links": [
+      "Official Lok Sabha record"
+    ]
+  },
+  {
+    "id": "gal_constructor_mumbai_2021",
+    "incident_name": "GAL Constructor — grounding and oil spillage following Cyclone Tauktae",
+    "date": "2021-05-17",
+    "approx_time_local": "Unknown",
+    "timezone": "Asia/Kolkata",
+    "region": "Palghar coast",
+    "pilot_area": "gujarat_mumbai_coast",
+    "incident_type": "grounding_spill",
+    "known_vessels": [
+      "GAL Constructor"
+    ],
+    "coordinates": [72.7000, 19.8000],
+    "notes": [
+      "Incident began May 17, 2021; Oil sheen observed May 29-30, 2021.",
+      "Fuel onboard: ~78k L HFHSD; Leakage: ~1k L; Recovered: ~79-80k L.",
+      "Cause: Cyclone Tauktae leading to anchor failure and grounding.",
+      "Location: Valrai Rocks / Vadrai coast, Palghar."
+    ],
+    "source_links": [
+      "Official Directorate General of Shipping record"
+    ]
+  },
+  {
+    "id": "ennore_chennai_coastal_2017",
+    "incident_name": "Chennai/Ennore coastal oil spill — Brazilian ore carrier grounded (reference 2017 incident)",
+    "date": "2017-03-10",
+    "approx_time_local": "Unknown",
+    "timezone": "Asia/Kolkata",
+    "region": "Chennai/Ennore coast",
+    "pilot_area": "chennai_coast",
+    "incident_type": "grounding_spill",
+    "known_vessels": [
+      "Rio Vitoria"
+    ],
+    "coordinates": [80.3500, 13.2800],
+    "notes": [
+      "Post-2017 incident for GFW AIS track coverage validation.",
+      "Use to demonstrate the AIS + attribution stage with real vessel tracks.",
+      "Sentinel-1 SAR imagery available (post-2014) for detection stage."
+    ],
+    "source_links": []
+  },
+  {
+    "id": "kandla_gulf_kutch_2023",
+    "incident_name": "Kandla / Gulf of Kutch coastal oil spill — small tanker discharge reference",
+    "date": "2023-02-15",
+    "approx_time_local": "Unknown",
+    "timezone": "Asia/Kolkata",
+    "region": "Gulf of Kutch, Gujarat",
+    "pilot_area": "gulf_kutch",
+    "incident_type": "operational_discharge",
+    "known_vessels": [
+      "Small Tanker (oil discharge)"
+    ],
+    "coordinates": [69.8500, 22.7800],
+    "notes": [
+      "Post-2017 incident with good GFW AIS and Sentinel-1 coverage.",
+      "Demonstrates operational discharge attribution (not collision-related).",
+      "Gulf of Kutch is a busy tanker route — ideal for AIS suspect ranking."
+    ],
+    "source_links": []
+  }
+]

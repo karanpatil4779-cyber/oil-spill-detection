@@ -1,0 +1,11 @@
+.env
+.cdsapirc
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db
+apps/web/node_modules/
+apps/web/dist/
+apps/web/.env
+data/raw/sar/
