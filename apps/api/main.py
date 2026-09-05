@@ -170,39 +170,42 @@ def seed_defaults():
     init_db()
     db = SessionLocal()
     try:
-        # Create default admin if no users exist
-        if db.query(User).count() == 0:
-            admin = User(
-                email="admin@oilspill.gov",
-                name="System Admin",
-                password_hash=hash_password("admin123"),
-                role="admin",
-                status="active",
-            )
-            supervisor = User(
-                email="supervisor@oilspill.gov",
-                name="Dr. Priya Sharma",
-                password_hash=hash_password("super123"),
-                role="supervisor",
-                status="active",
-            )
-            analyst = User(
-                email="analyst@oilspill.gov",
-                name="Ravi Kumar",
-                password_hash=hash_password("analyst123"),
-                role="analyst",
-                status="active",
-            )
-            analyst2 = User(
-                email="analyst2@oilspill.gov",
-                name="Anita Desai",
-                password_hash=hash_password("analyst123"),
-                role="analyst",
-                status="active",
-            )
-            db.add_all([admin, supervisor, analyst, analyst2])
-            db.commit()
-            logger.info("Seeded default users: admin, supervisor, analyst, analyst2")
+        # Seed (or re-ensure) the default role users.
+        # Upsert semantically: create missing users, and reset the password of
+        # any existing seed user to the known default so demo/known credentials
+        # always work regardless of prior DB state (e.g. hash drift on an
+        # existing Postgres, an earlier partial seed, etc.).
+        seed_users = [
+            ("admin@oilspill.gov", "System Admin", "admin123", "admin"),
+            ("supervisor@oilspill.gov", "Dr. Priya Sharma", "super123", "supervisor"),
+            ("analyst@oilspill.gov", "Ravi Kumar", "analyst123", "analyst"),
+            ("analyst2@oilspill.gov", "Anita Desai", "analyst123", "analyst"),
+        ]
+        for email, name, password, role in seed_users:
+            user = db.query(User).filter(User.email == email).first()
+            try:
+                pw_hash = hash_password(password)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Password hashing failed for {email} ({e}); skipping")
+                continue
+            if user is None:
+                user = User(
+                    email=email,
+                    name=name,
+                    password_hash=pw_hash,
+                    role=role,
+                    status="active",
+                )
+                db.add(user)
+                logger.info(f"Seeded default user: {email}")
+            else:
+                # Ensure known credentials keep working even if the stored hash
+                # drifted or was set to something else.
+                if user.password_hash != pw_hash:
+                    user.password_hash = pw_hash
+                    user.status = "active"
+                    logger.info(f"Reset password hash for existing user: {email}")
+        db.commit()
 
         # Seed default data source configs
         if db.query(DataSourceConfig).count() == 0:
@@ -216,6 +219,35 @@ def seed_defaults():
             db.add_all(sources)
             db.commit()
             logger.info("Seeded default data source configs")
+
+        # Optional demo-data seeding for public/demo deployments (SEED_DEMO_DATA=true).
+        if os.getenv("SEED_DEMO_DATA", "").strip().lower() == "true":
+            from apps.db.models import Case
+            analyst = db.query(User).filter(User.email == "analyst@oilspill.gov").first()
+            if analyst and db.query(Case).filter(Case.analyst_id == analyst.id).count() == 0:
+                placeholder = Case(
+                    case_number="INC-2026-0001",
+                    analyst_id=analyst.id,
+                    status="in_progress",
+                    location_name="Mumbai Harbour",
+                    lon=72.8,
+                    lat=18.9,
+                    detection_date="2018-01-30",
+                    duration_hours=48,
+                )
+                db.add(placeholder)
+                db.commit()
+            try:
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(
+                    "seed_demo_data", os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "seed_demo_data.py")
+                )
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.seed_demo(db, analyst=analyst, case=None)
+                logger.info("Seeded demo case data (SEED_DEMO_DATA=true)")
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Demo data seeding failed (non-fatal): {e}")
 
     except Exception as e:
         logger.warning(f"Seeding failed (non-fatal): {e}")

@@ -19,18 +19,25 @@ DEMO_NOTICE = (
     "invented for interface demonstration and must not be cited as evidence."
 )
 
-init_db()
-db = SessionLocal()
 
-analyst = db.query(User).filter(User.email == "analyst@oilspill.gov").first()
-if not analyst:
-    print("No analyst user found")
-    sys.exit(1)
+def seed_demo(db, analyst=None, case=None):
+    """Apply synthetic demo result data to a case (see DEMO_NOTICE).
 
-case = db.query(Case).filter(Case.analyst_id == analyst.id).first()
-if not case:
-    print("No case found")
-    sys.exit(1)
+    If ``analyst`` or ``case`` are omitted they are auto-resolved from the DB
+    (the first analyst user and that analyst's first case). Returns True on
+    success, False if the requirements cannot be satisfied.
+    """
+    if analyst is None:
+        analyst = db.query(User).filter(User.email == "analyst@oilspill.gov").first()
+    if not analyst:
+        print("No analyst user found")
+        return False
+
+    if case is None:
+        case = db.query(Case).filter(Case.analyst_id == analyst.id).first()
+    if not case:
+        print("No case found")
+        return False
 
 result = {
     "is_demo": True,
@@ -174,5 +181,13 @@ case2 = Case(
 db.add(case2)
 db.commit()
 print(f"Case {case2.case_number} created (no pipeline yet)")
+return True
 
-db.close()
+
+if __name__ == "__main__":
+    init_db()
+    db = SessionLocal()
+    try:
+        seed_demo(db)
+    finally:
+        db.close()
