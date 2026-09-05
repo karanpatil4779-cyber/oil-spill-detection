@@ -34,14 +34,25 @@ class PipelineOutput:
     status: str
     origin_centroid: Optional[List[float]] = None
     origin_bbox: Optional[List[float]] = None
+    # Positional spread of the back-tracked particle cloud, in degrees
+    # [lon, lat]. Computed by the tracker; surfaced so the UI can draw an
+    # uncertainty region instead of implying the centroid is a fix.
+    origin_std_dev: Optional[List[float]] = None
     detections: List[Dict] = field(default_factory=list)
     characterization: Optional[Dict] = None
     age: Optional[Dict] = None
     eo: Optional[Dict] = None
     forecast: Optional[Dict] = None
     suspects: List[Dict] = field(default_factory=list)
+    # ``*_available`` means "the provider was called and returned usable data".
+    # It is deliberately NOT set from a successful constructor. ``*_requested``
+    # distinguishes "we never asked" from "we asked and it failed" — without it
+    # a skipped stage and a broken provider look identical downstream.
     sar_available: bool = False
+    sar_requested: bool = False
+    sar_scenes_used: int = 0
     gfw_available: bool = False
+    gfw_requested: bool = False
     warnings: List[str] = field(default_factory=list)
 
 
@@ -67,23 +78,39 @@ def resolve_metocean_file(incident_id: Optional[str]) -> str:
 
 
 def _run_detection(lon, lat, date, band="VV", max_products=1):
-    """Stage 1: optional SAR detection."""
-    out = {"detections": [], "available": False, "warnings": []}
+    """Stage 1: optional SAR detection.
+
+    ``available`` is set only once the provider has actually returned imagery
+    we could run the detector over. Constructing ``SARDetector`` proves nothing
+    about connectivity, so setting the flag there made a failed download
+    indistinguishable from a clean scene.
+    """
+    out = {"detections": [], "available": False, "provider_reachable": False,
+           "scenes_used": 0, "warnings": []}
     try:
         from engines.detection.sar_detector import SARDetector
         det = SARDetector()
-        out["available"] = True
         products = det.search_products(lon, lat, date, product_type="GRD", limit=max_products)
+        # The catalogue query returned without raising, so the provider is up.
+        out["provider_reachable"] = True
         if not products:
-            out["warnings"].append("No Sentinel-1 product found for this date/location")
+            out["warnings"].append(
+                "SAR: provider reachable but no Sentinel-1 product covers this date/location"
+            )
             return out
         product = products[0]
         logger.info(f"SAR: downloading {product['name']}")
         dl_dir = det.download_product(product["id"])
         detections = det.detect_from_product(str(dl_dir), band=band)
         out["detections"] = detections
+        out["scenes_used"] = 1
+        out["available"] = True
+        if not detections:
+            out["warnings"].append(
+                "SAR: scene processed, detector found no dark-spot candidates"
+            )
     except Exception as e:
-        out["warnings"].append(f"SAR detection skipped: {e}")
+        out["warnings"].append(f"SAR detection FAILED: {type(e).__name__}: {e}")
     return out
 
 
@@ -94,17 +121,28 @@ def _run_characterization(detections, **kw):
     return res.__dict__
 
 
-def _run_aging(detections, metocean_file, lon, lat, time, window_hours=48):
-    """Estimate the age of a detected slick using SAR contrast + wind forcing."""
+def _run_aging(detections, metocean_file, lon, lat, time, window_hours=48, scenes_used=1):
+    """Estimate the age of a detected slick using SAR contrast + wind forcing.
+
+    ``scenes_used`` is the number of distinct SAR acquisitions the detections
+    came from. It must NOT be the detection count: several dark spots in one
+    image are not several passes, and the age estimator widens or narrows its
+    interval based on how many independent observations it believes it has.
+    """
     from engines.aging.oil_age import estimate_oil_age, extract_mean_wind
     mean_wind = None
+    wind_warning = None
     try:
         mean_wind = extract_mean_wind(metocean_file, lon, lat, time, window_hours)
     except Exception as e:
-        logger.warning(f"Wind extraction for age failed: {e}")
-    res = estimate_oil_age(detections, mean_wind_ms=mean_wind, frames=max(1, len(detections) or 1))
+        wind_warning = f"Wind extraction for age failed: {type(e).__name__}: {e}"
+        logger.warning(wind_warning)
+    res = estimate_oil_age(detections, mean_wind_ms=mean_wind, frames=max(1, int(scenes_used)))
     out = res.__dict__
     out["warnings"] = [w for w in out["warnings"] if w]
+    if wind_warning:
+        out["warnings"].append(wind_warning)
+    out["scenes_used"] = int(scenes_used)
     return out
 
 
@@ -159,20 +197,29 @@ def _run_ais(origin, detection_time, duration_hours):
     suspects are built directly from it. The /vessels/{id} identity endpoint
     requires a separate dataset permission some tokens lack (403); enrichment
     is therefore best-effort and never blocks attribution.
+
+    Returns ``(suspects, available, warnings)``. ``available`` means the report
+    call succeeded — it is not set from a successful constructor, because an
+    auth failure would otherwise be reported as "no vessels near the origin",
+    which reads as exculpatory evidence rather than as an infrastructure error.
     """
     suspects = []
     available = False
+    warnings = []
     try:
         from engines.ais.gfw_client import GFWClient
         from datetime import datetime, timedelta
 
         gfw = GFWClient()
-        available = True
         detection_dt = datetime.fromisoformat(detection_time)
 
         # GFW AIS coverage is reliable from ~2017 onward.
         if detection_dt.year < 2017:
-            return suspects, available
+            warnings.append(
+                f"AIS: GFW coverage begins ~2017; incident year {detection_dt.year} "
+                "is outside coverage, so no vessel search was performed"
+            )
+            return suspects, available, warnings
 
         bbox = origin["bbox"]
         margin = 0.05
@@ -184,6 +231,12 @@ def _run_ais(origin, detection_time, duration_hours):
             f"{detection_dt:%Y-%m-%dT%H:%M:%S.000Z}",
         ]
         raw = gfw.vessels_in_bbox_and_time(search_bbox, win)
+        # The report call returned, so AIS really was consulted.
+        available = True
+        if not raw:
+            warnings.append(
+                "AIS: GFW returned no vessel presence records for this box and window"
+            )
 
         for entry in raw:
             vid = entry.get("vessel_id") or entry.get("vesselId") or entry.get("id", "")
@@ -208,6 +261,14 @@ def _run_ais(origin, detection_time, duration_hours):
             except Exception:
                 pass
 
+            # A vessel with no reported mean position must stay unlocated.
+            # Substituting the centre of the search box put it within a few
+            # hundred metres of the origin centroid and earned it a near-maximal
+            # proximity score on the heaviest attribution factor.
+            avg_lat = mp.get("lat")
+            avg_lon = mp.get("lon")
+            position_known = avg_lat is not None and avg_lon is not None
+
             suspects.append({
                 "mmsi": int(entry.get("mmsi") or 0),
                 "vessel_id": vid,
@@ -221,17 +282,33 @@ def _run_ais(origin, detection_time, duration_hours):
                 "match_count": int(entry.get("presence_hours", 1) or 1),
                 "presence_hours": float(entry.get("presence_hours", 0) or 0),
                 "last_seen": str(last),
-                "avg_lat": mp.get("lat") or (search_bbox[1]+search_bbox[3])/2,
-                "avg_lon": mp.get("lon") or (search_bbox[0]+search_bbox[2])/2,
+                "avg_lat": avg_lat,
+                "avg_lon": avg_lon,
+                "position_known": position_known,
+                # GFW presence is reported on a gridded product, so a position
+                # locates a cell (~0.1 deg, order 10 km) and not the hull.
+                "position_source": "gfw_presence_grid" if position_known else "none",
                 "positions": entry.get("positions", []),
             })
 
+        unlocated = sum(1 for s in suspects if not s["position_known"])
+        if unlocated:
+            warnings.append(
+                f"AIS: {unlocated} of {len(suspects)} vessels have no reported position; "
+                "their proximity factor cannot be scored"
+            )
+
         # Filter out irrelevant traffic and attach behavioural anomaly evidence.
         from engines.ais.behaviour import filter_and_enrich
+        before = len(suspects)
         suspects = filter_and_enrich(suspects)
+        logger.info(f"AIS: candidate reduction {before} -> {len(suspects)}")
     except Exception as e:
-        logger.warning(f"AIS stage skipped: {e}")
-    return suspects, available
+        # Do not swallow this. A 403 here previously produced an empty suspect
+        # list with gfw_available=True and no warning at all.
+        warnings.append(f"AIS stage FAILED: {type(e).__name__}: {e}")
+        logger.warning(f"AIS stage failed: {e}")
+    return suspects, available, warnings
 
 
 def _run_attribution(suspects, origin_centroid):
@@ -276,16 +353,24 @@ def run_pipeline(
 
     # Stage 1 & 2: Detection + Characterization (optional)
     if run_sar:
+        out.sar_requested = True
         sar_date = sar_date or detection_time[:10]
         _progress("detection", 5.0)
         det_res = _run_detection(lon, lat, sar_date)
         out.sar_available = det_res["available"]
+        out.sar_scenes_used = det_res["scenes_used"]
         out.warnings += det_res["warnings"]
         out.detections = det_res["detections"]
         if out.detections:
             _progress("characterization", 12.0)
             out.characterization = _run_characterization(out.detections)
             logger.info(f"Characterization: volume={out.characterization['est_volume_m3']} m3")
+    else:
+        out.warnings.append(
+            "SAR detection was not requested for this run, so no slick was observed. "
+            "Origin and forecast below are propagated from the operator-entered "
+            "coordinates, not from a detected slick."
+        )
 
     # Stage 3 & 4: Metocean + Transport (backward origin + forward forecast)
     _progress("metocean", 22.0)
@@ -299,6 +384,9 @@ def run_pipeline(
         return out
     out.origin_centroid = origin["centroid"]
     out.origin_bbox = origin["bbox"]
+    # Carry the particle-cloud spread through instead of dropping it, so the
+    # origin can be drawn as a region rather than implied to be a fix.
+    out.origin_std_dev = origin.get("std_dev")
     _progress("transport", 55.0)
 
     # Stage 4b: Forward drift forecast (predict future flow of the slick)
@@ -309,7 +397,8 @@ def run_pipeline(
     # Stage 2b: Oil-spill age estimation (needs SAR detections + metocean wind)
     if out.detections and metocean_file:
         _progress("aging", 66.0)
-        out.age = _run_aging(out.detections, metocean_file, lon, lat, detection_time)
+        out.age = _run_aging(out.detections, metocean_file, lon, lat, detection_time,
+                             scenes_used=out.sar_scenes_used or 1)
 
     # Stage 1b: Sentinel-2 EO confirmation (optical, complements SAR)
     if run_sar:
@@ -318,7 +407,9 @@ def run_pipeline(
 
     # Stage 5: AIS via GFW
     _progress("ais", 80.0)
-    out.suspects, out.gfw_available = _run_ais(origin, detection_time, duration_hours)
+    out.gfw_requested = True
+    out.suspects, out.gfw_available, ais_warnings = _run_ais(origin, detection_time, duration_hours)
+    out.warnings += ais_warnings
 
     # Stage 6: Attribution
     if out.suspects:

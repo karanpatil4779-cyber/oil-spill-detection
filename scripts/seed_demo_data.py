@@ -1,9 +1,23 @@
-"""Seed mock pipeline data for demo."""
+"""Seed mock pipeline data for demo.
+
+EVERYTHING THIS SCRIPT WRITES IS SYNTHETIC. No value here was produced by the
+pipeline, and no vessel named here exists. The records are therefore stamped
+with ``is_demo`` and a ``demo_notice`` inside ``pipeline_result``, which the UI
+renders as a DEMO DATA badge. Do not remove those fields: without them a
+fabricated tanker name sits in the same table, and renders in the same panel,
+as a real Global Fishing Watch record.
+"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from apps.db.models import SessionLocal, Case, AuditLogEntry, User, init_db
 import json
+
+DEMO_NOTICE = (
+    "Synthetic fixture data seeded by scripts/seed_demo_data.py. Vessel "
+    "identities, positions, attribution scores and imagery-derived values are "
+    "invented for interface demonstration and must not be cited as evidence."
+)
 
 init_db()
 db = SessionLocal()
@@ -19,6 +33,8 @@ if not case:
     sys.exit(1)
 
 result = {
+    "is_demo": True,
+    "demo_notice": DEMO_NOTICE,
     "incident_id": case.case_number,
     "status": "completed",
     "origin_centroid": [72.75, 18.92],
@@ -105,12 +121,33 @@ result = {
         }
     ],
     "sar_available": True,
+    "sar_requested": False,
+    "sar_scenes_used": 0,
     "gfw_available": True,
+    "gfw_requested": True,
+    "origin_std_dev": [0.06, 0.055],
+    "provider_status": {"sar": "not_requested", "gfw": "ok", "transport": "ok"},
     "warnings": ["Metocean ERA5 wind field shows variable directions - transport model uncertainty elevated"]
 }
 
+# Every suspect carries the marker too: vessel rows are frequently exported,
+# screenshotted or pasted into a report on their own, away from the case header
+# where the badge lives.
+for _s in result["suspects"]:
+    _s["is_demo"] = True
+    _s["position_known"] = True
+    _s["position_source"] = "synthetic_fixture"
+
+# Compute the verdict with the same code path a real run uses, rather than
+# hardcoding a confidence the pipeline would never emit. The previous value
+# (0.72) was copied from age.confidence and was not a detection confidence.
+from engines.assessment import summarize, stored_confidence
+summarize(result)
+_provider_status = {"sar": "not_requested", "gfw": "ok", "transport": "ok"}
+result["provider_status"] = _provider_status
+
 case.pipeline_result = result
-case.overall_confidence = 0.72
+case.overall_confidence = stored_confidence(result)
 case.status = "pending_review"
 
 db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="case_created", detail={"location": "Mumbai Harbour"}))

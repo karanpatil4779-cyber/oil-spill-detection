@@ -9,3 +9,8 @@ apps/web/node_modules/
 apps/web/dist/
 apps/web/.env
 data/raw/sar/
+*.log
+server.pid
+_deltest.txt
+.pytest_cache/
+.DS_Store

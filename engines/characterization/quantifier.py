@@ -56,6 +56,10 @@ class CharacterizationResult:
     est_volume_tonnes: float
     likely_oil_type: str
     per_slick: List[Dict] = field(default_factory=list)
+    # The volume figures rest entirely on the assumptions below. They are
+    # emitted with the result so the UI can state them alongside the number
+    # rather than presenting the volume as a measurement.
+    assumptions: Dict = field(default_factory=dict)
 
 
 def compute_pixel_area_m2(bbox_px, spatial_resolution_m: float = 40.0) -> float:
@@ -119,9 +123,20 @@ def characterize_detections(
         total_area_km2=round(total_area_m2 / 1e6, 6),
         est_volume_m3=round(vol_m3, 3),
         est_volume_barrels=round(vol_m3 * BARRELS_PER_M3, 2),
-        est_volume_tonnes=round(vol_m3 * oil_density, 3),
+        # oil_density is kg/m3, so vol_m3 * oil_density is KILOGRAMS.
+        # Divide by 1000 to report metric tonnes as the field name states.
+        est_volume_tonnes=round(vol_m3 * oil_density / 1000.0, 3),
         likely_oil_type=likely_oil_type,
         per_slick=per_slick,
+        assumptions={
+            "film_thickness_um": thickness_um,
+            "film_thickness_source": "assumed constant (NOAA 'true oil color' rule of thumb)",
+            "oil_density_kg_m3": oil_density,
+            "oil_type_source": "caller-supplied default — NOT inferred from imagery",
+            "spatial_resolution_m": spatial_resolution_m,
+            "area_method": "detection bounding box (over-estimates a non-rectangular slick)",
+            "volume_is_measurement": False,
+        },
     )
 
     # Sanity heuristic — flag implausibly huge volumes (likely look-alike)

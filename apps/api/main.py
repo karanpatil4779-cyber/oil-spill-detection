@@ -7,14 +7,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 import logging
+import os
 
 logger = logging.getLogger("api")
 
 app = FastAPI(title="Marine Oil-Spill Attribution API")
 
+# Allow configurable CORS origins (comma-separated) for production deploy.
+# Falls back to the local dev origins when CORS_ORIGINS is not set.
+_cors = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+allow_origins = [o.strip() for o in _cors.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

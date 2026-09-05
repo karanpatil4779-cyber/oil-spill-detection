@@ -289,14 +289,44 @@ def _execute_run(run_id: str):
         "forecast": out.forecast,
         "suspects": out.suspects,
         "sar_available": out.sar_available,
+        "sar_requested": getattr(out, "sar_requested", False),
+        "sar_scenes_used": getattr(out, "sar_scenes_used", 0),
         "gfw_available": out.gfw_available,
+        "gfw_requested": getattr(out, "gfw_requested", False),
+        "origin_std_dev": getattr(out, "origin_std_dev", None),
         "warnings": out.warnings,
     }
+    # Provider status must separate "never asked" from "asked and failed".
+    # Collapsing both to "unavailable" made a skipped stage look like an outage
+    # and an outage look like a clean result.
+    if not getattr(out, "sar_requested", False):
+        sar_state = "not_requested"
+    elif out.sar_available and out.detections:
+        sar_state = "ok"
+    elif out.sar_available:
+        sar_state = "no_detections"
+    else:
+        sar_state = "failed"
+    if not getattr(out, "gfw_requested", False):
+        gfw_state = "not_requested"
+    elif out.gfw_available:
+        gfw_state = "ok" if out.suspects else "ok_no_vessels"
+    else:
+        gfw_state = "failed"
     provider_status = {
-        "sar": "ok" if out.sar_available and out.detections else ("warn" if out.sar_available else "unavailable"),
-        "gfw": "ok" if out.gfw_available else "unavailable",
+        "sar": sar_state,
+        "gfw": gfw_state,
         "transport": "ok" if out.origin_centroid else "no_particles",
     }
+    # Attach the server-side verdict and the renamed transport confidence, so the
+    # decision labels are computed once here rather than re-derived in the
+    # browser from a number that cannot support them.
+    try:
+        from engines.assessment import summarize
+        summarize(result)
+        result["provider_status"] = provider_status
+    except Exception as e:  # assessment must never fail a completed run
+        logger.warning(f"Assessment attach failed: {e}")
     db = SessionLocal()
     try:
         run = db.query(Run).filter(Run.run_id == run_id).first()
@@ -340,12 +370,14 @@ def _execute_run(run_id: str):
 
 
 def _extract_confidence(result: dict):
-    age = result.get("age") or {}
-    fc = result.get("forecast") or {}
-    c1, c2 = age.get("confidence"), fc.get("confidence")
-    if c1 is not None and c2 is not None:
-        return round((c1 + c2) / 2, 3)
-    return c1 or c2
+    """Detection confidence for Case.overall_confidence.
+
+    Delegates to engines.assessment so the API and the job runner cannot drift
+    apart, and so the stored column means "how likely is this oil" rather than
+    "how many transport particles stayed in the domain".
+    """
+    from engines.assessment import stored_confidence
+    return stored_confidence(result or {})
 # ---------------------------------------------------------------------------
 # Cancellation + watchdog
 # ---------------------------------------------------------------------------

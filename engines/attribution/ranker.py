@@ -86,11 +86,25 @@ class AttributionRanker:
 
         for suspect in suspects:
             # 1. Proximity Score (inverse distance)
-            dist = self._calculate_distance(
-                [suspect.get("avg_lon", 0), suspect.get("avg_lat", 0)],
-                origin_centroid,
+            # A vessel with no reported position cannot be scored on proximity.
+            # Previously the caller substituted the centre of the search box,
+            # which sits within a few hundred metres of the origin centroid and
+            # therefore awarded a near-maximal score on the heaviest factor to a
+            # vessel whose location was unknown.
+            avg_lon = suspect.get("avg_lon")
+            avg_lat = suspect.get("avg_lat")
+            position_known = (
+                suspect.get("position_known", avg_lon is not None and avg_lat is not None)
+                and avg_lon is not None and avg_lat is not None
             )
-            proximity_score = 1.0 / (1.0 + dist * 100)
+            unscoreable = []
+            if position_known:
+                dist = self._calculate_distance([avg_lon, avg_lat], origin_centroid)
+                proximity_score = 1.0 / (1.0 + dist * 100)
+            else:
+                dist = None
+                proximity_score = 0.0
+                unscoreable.append("proximity")
 
             # 2. Duration Score (based on match count / track density)
             duration_score = min(suspect.get("match_count", 1) / 50.0, 1.0)
@@ -130,7 +144,23 @@ class AttributionRanker:
                     "cargo": round(cargo_score, 3),
                     "behaviour": round(behaviour_score, 3),
                 },
+                # Weights are NOT renormalised when a factor is unscoreable —
+                # doing so silently would change the published 35/30/20/15
+                # method. The score is reported as-is and the missing factor is
+                # named so the UI can say the ranking is incomplete.
+                "factors_unscoreable": unscoreable,
+                "distance_to_origin_deg": (round(dist, 5) if dist is not None else None),
             })
 
         ranked_list.sort(key=lambda x: x["attribution_score"], reverse=True)
+
+        # Rank is meaningless where scores tie; say so rather than letting sort
+        # order imply an ordering the evidence does not support.
+        for i, item in enumerate(ranked_list):
+            tied = [o for o in ranked_list
+                    if o is not item
+                    and o["attribution_score"] == item["attribution_score"]]
+            item["rank"] = i + 1
+            item["rank_is_tied"] = bool(tied)
+            item["tied_with_count"] = len(tied)
         return ranked_list

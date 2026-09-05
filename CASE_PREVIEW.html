@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Case INC-2026-0006 — Investigation Workspace</title>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f6f7f9; --surface:#ffffff; --ink:#12171f; --ink2:#4a5666; --ink3:#7d8899;
+  --line:#e2e6ec; --line2:#cdd4de;
+  --ok:#0f7b5f; --okbg:#e7f5f0;
+  --warn:#8a5a00; --warnbg:#fdf3e0;
+  --bad:#a3282d; --badbg:#fdeced;
+  --mute:#5b6675; --mutebg:#eef0f3;
+  --accent:#1b4f8f; --accentbg:#e8f0fa;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+     font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:20px 20px 60px}
+
+/* ---------- header ---------- */
+.hdr{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+     padding:16px 18px;margin-bottom:14px}
+.hdr-top{display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;justify-content:space-between}
+.eyebrow{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--ink3);
+         font-weight:650}
+h1{margin:2px 0 0;font-size:22px;letter-spacing:-.02em;font-weight:680}
+.sub{color:var(--ink2);font-size:13px;margin-top:3px}
+.meta{display:flex;flex-wrap:wrap;gap:0;margin-top:14px;border-top:1px solid var(--line);
+      padding-top:12px}
+.meta div{padding-right:26px;margin-right:26px;border-right:1px solid var(--line)}
+.meta div:last-child{border-right:0}
+.mk{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink3);font-weight:650}
+.mv{font-family:var(--mono);font-size:13px;margin-top:2px}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:650;
+      padding:3px 9px;border-radius:20px;letter-spacing:.02em;white-space:nowrap}
+.p-ok{background:var(--okbg);color:var(--ok)} .p-warn{background:var(--warnbg);color:var(--warn)}
+.p-bad{background:var(--badbg);color:var(--bad)} .p-mute{background:var(--mutebg);color:var(--mute)}
+.p-acc{background:var(--accentbg);color:var(--accent)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+/* ---------- verdict ---------- */
+.verdict{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media(max-width:780px){.verdict{grid-template-columns:1fr}}
+.vcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;
+       position:relative;overflow:hidden}
+.vcard.shown{border-color:#f0c9cb}
+.vcard.shown::before,.vcard.truth::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.vcard.shown::before{background:var(--bad)}
+.vcard.truth::before{background:var(--accent)}
+.vlab{font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;color:var(--ink3)}
+.vtitle{font-size:19px;font-weight:680;letter-spacing:-.015em;margin:7px 0 6px}
+.vnum{font-family:var(--mono);font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1}
+.vnote{font-size:12.5px;color:var(--ink2);margin-top:9px}
+
+/* ---------- generic panel ---------- */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+       margin-bottom:14px;overflow:hidden}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:12px 16px;border-bottom:1px solid var(--line);background:#fbfcfd}
+.ph h2{margin:0;font-size:13px;font-weight:680;letter-spacing:.005em}
+.ph .n{font-family:var(--mono);font-size:10.5px;color:var(--ink3);
+       background:var(--mutebg);padding:2px 6px;border-radius:4px}
+.pb{padding:16px}
+
+/* ---------- evidence chain ---------- */
+.chain{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+@media(max-width:900px){.chain{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:520px){.chain{grid-template-columns:repeat(2,1fr)}}
+.stage{border:1px solid var(--line);border-radius:8px;padding:11px;background:#fdfdfe}
+.stage.nodata{background:#fafafa;border-style:dashed}
+.st-n{font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.st-t{font-size:12.5px;font-weight:650;margin:3px 0 8px;letter-spacing:-.005em}
+.st-v{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:-.01em}
+.st-u{font-size:10.5px;color:var(--ink3)}
+.st-w{font-size:10.5px;color:var(--warn);margin-top:7px;line-height:1.35}
+
+/* ---------- provider strip ---------- */
+.prov{display:flex;flex-wrap:wrap;gap:8px}
+.prov .item{display:flex;align-items:center;gap:7px;border:1px solid var(--line);
+            border-radius:7px;padding:8px 11px;font-size:12px;background:#fdfdfe}
+.prov .item b{font-weight:650}
+
+/* ---------- map ---------- */
+.mapbox{background:#0d1620;border-radius:8px;overflow:hidden;position:relative}
+svg.map{display:block;width:100%;height:auto}
+.legend{display:flex;flex-wrap:wrap;gap:14px;padding:11px 14px;background:#0d1620;
+        border-top:1px solid #1e2c3a}
+.lg{display:flex;align-items:center;gap:6px;font-size:11px;color:#b8c6d4}
+.sw{width:13px;height:9px;border-radius:2px;flex:none}
+
+/* ---------- table ---------- */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+   color:var(--ink3);font-weight:680;padding:8px 10px;border-bottom:1px solid var(--line2);
+   white-space:nowrap;background:#fbfcfd;position:sticky;top:0}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.m{font-family:var(--mono);font-size:12px}
+.rank{font-family:var(--mono);font-weight:650;color:var(--ink3)}
+.vname{font-weight:620}
+.tie{font-size:9.5px;color:var(--bad);font-weight:700;letter-spacing:.04em}
+.bar{position:relative;height:5px;border-radius:3px;background:var(--mutebg);
+     width:78px;overflow:hidden;display:inline-block;vertical-align:middle}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:3px}
+.scroll{max-height:420px;overflow:auto}
+
+/* ---------- factor mini-bars ---------- */
+.fx{display:flex;gap:3px;align-items:flex-end;height:22px}
+.fx span{width:9px;background:var(--accentbg);border-radius:2px 2px 0 0;position:relative}
+.fx span i{position:absolute;left:0;right:0;bottom:0;background:var(--accent);border-radius:2px 2px 0 0}
+
+/* ---------- uncertainty ---------- */
+.uc{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}
+@media(max-width:700px){.uc{grid-template-columns:1fr}}
+.ucr{display:flex;align-items:center;justify-content:space-between;gap:10px;
+     border:1px solid var(--line);border-radius:7px;padding:10px 12px}
+.ucr.absent{background:#fafafa;border-style:dashed}
+.ucn{font-size:12.5px;font-weight:600}
+.ucw{font-size:10.5px;color:var(--ink3);margin-top:1px}
+
+/* ---------- notes ---------- */
+.note{display:flex;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+.note:last-child{border-bottom:0}
+.note .tag{flex:none;font-family:var(--mono);font-size:9.5px;font-weight:700;padding:2px 6px;
+           border-radius:4px;height:fit-content;letter-spacing:.03em}
+.t-crit{background:var(--badbg);color:var(--bad)}
+.t-hi{background:var(--warnbg);color:var(--warn)}
+.t-info{background:var(--accentbg);color:var(--accent)}
+.note code{font-family:var(--mono);font-size:11.5px;background:var(--mutebg);
+           padding:1px 4px;border-radius:3px}
+.note b{font-weight:650}
+
+/* ---------- audit ---------- */
+.aud{font-family:var(--mono);font-size:11.5px}
+.aud .row{display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--line)}
+.aud .row:last-child{border-bottom:0}
+.aud .ts{color:var(--ink3);flex:none;width:150px}
+.aud .ac{color:var(--accent);flex:none;width:120px}
+.aud .dt{color:var(--ink2);word-break:break-all}
+
+.foot{text-align:center;color:var(--ink3);font-size:11.5px;margin-top:22px;line-height:1.6}
+.banner{background:var(--warnbg);border:1px solid #f0dcb4;border-radius:8px;
+        padding:11px 14px;font-size:12.5px;color:#6f4a06;margin-bottom:14px}
+.banner b{font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="banner" id="banner"></div>
+  <div class="hdr" id="hdr"></div>
+  <div class="verdict" id="verdict"></div>
+
+  <div class="panel">
+    <div class="ph"><h2>Evidence chain</h2><span class="n" id="chain-n"></span></div>
+    <div class="pb"><div class="chain" id="chain"></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h2>Provider status</h2><span class="n">Run.provider_status</span></div>
+    <div class="pb"><div class="prov" id="prov"></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h2>Origin hindcast &amp; forward forecast</h2><span class="n" id="map-n"></span></div>
+    <div class="mapbox"><svg class="map" id="map" viewBox="0 0 960 520"></svg>
+      <div class="legend" id="legend"></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h2>Candidate source vessels</h2><span class="n" id="ves-n"></span></div>
+    <div class="scroll"><table id="vtab"></table></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h2>Uncertainty factors</h2><span class="n" id="uc-n"></span></div>
+    <div class="pb"><div class="uc" id="uc"></div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h2>Data-integrity notes</h2><span class="n">from source audit</span></div>
+    <div class="pb" id="notes"></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph"><h2>Audit trail</h2><span class="n" id="aud-n"></span></div>
+    <div class="pb"><div class="aud" id="aud"></div></div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script id="payload" type="application/json">{"case": {"id": 6, "case_number": "INC-2026-0006", "status": "in_progress", "location_name": "M1 smoke Kandla", "lon": 69.85, "lat": 22.78, "detection_date": "2023-02-15", "overall_confidence": 1.0, "pipeline_status": "done", "created_at": "2026-09-04 07:12:47.839092", "updated_at": "2026-09-04 07:15:22.093171"}, "run": {"run_id": "run_4d3936757f8c", "status": "succeeded", "current_stage": "complete", "progress_percent": 100.0, "provider_status": {"sar": "unavailable", "gfw": "ok", "transport": "ok"}, "warnings": [], "error_details": null, "started_at": "2026-09-04 07:12:47.953725", "completed_at": "2026-09-04 07:15:22.091327", "input_scene_ids": [], "metocean_data_ids": [], "model_version_ids": [], "configuration_snapshot": {"lon": 69.85, "lat": 22.78, "detection_date": "2023-02-15", "duration_hours": 6, "incident_id": "INC-2026-0006", "run_sar": false, "sar_date": null}}, "pipeline": {"incident_id": "INC-2026-0006", "status": "ok", "origin_centroid": [69.8172814055858, 22.763784149491148], "origin_bbox": [69.74636943624368, 22.70676680164944, 69.87472009582787, 22.82101000645393], "detections": [], "characterization": null, "age": null, "eo": null, "forecast": {"centroid": [69.98239106196185, 22.83364320873722], "median_path": [[69.85, 22.78], [69.85665646367048, 22.782298249502045], [69.86097835916553, 22.783119380602194], [69.86534082254775, 22.785145241018327], [69.87149925240244, 22.786580594574687], [69.87788923163826, 22.79060554934891], [69.8830690416271, 22.79285912044409], [69.88678592480699, 22.79678512818608], [69.89018570765322, 22.800272562410978], [69.8986155813873, 22.796772275201455], [69.90296328965337, 22.7984618881545], [69.91134097257715, 22.79894809062035], [69.91677757468253, 22.800592980286474], [69.92038231317092, 22.803770920479764], [69.92820172698042, 22.809586230931245], [69.9329873854351, 22.809649944844143], [69.93944095855379, 22.812028910472087], [69.9457487753624, 22.817431227668436], [69.94981463019471, 22.819532883536283], [69.95539582712115, 22.82025273572701], [69.9625804689849, 22.822473769568255], [69.96853875978134, 22.825283487770715], [69.97172101442158, 22.827334563081507], [69.97810429720948, 22.830933717926328], [69.98239106196185, 22.83364320873722]], "bbox": [69.85074948201037, 22.700067865363657, 70.10404436832921, 22.96357323224676], "spread_deg": [0.05077667125159412, 0.049569173108512554], "confidence": 1.0}, "suspects": [{"mmsi": 376441000, "vessel_id": "70e215e47-7ab5-a648-e477-4fe5370a500f", "vessel_name": "AEL II", "ship_type": "OTHER_NON_FISHING", "geartype": "TANKER", "cargo_type": "OTHER_NON_FISHING", "flag": "VCT", "imo": "9361938", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.3859, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 1.0, "behaviour": 0.25}}, {"mmsi": 419761000, "vessel_id": "41dc91125-5f54-21ca-2d16-925fd686ccfe", "vessel_name": "SWARNA PUSHP", "ship_type": "OTHER_NON_FISHING", "geartype": "TANKER", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "9432672", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.3859, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 1.0, "behaviour": 0.25}}, {"mmsi": 440177000, "vessel_id": "42c121c80-0a48-0230-abf1-22a5c26ea84b", "vessel_name": "RAON TERESA", "ship_type": "OTHER_NON_FISHING", "geartype": "TANKER", "cargo_type": "OTHER_NON_FISHING", "flag": "KOR", "imo": "9244984", "length": null, "match_count": 1, "presence_hours": 1.0, "last_seen": "2023-02-15T08:00:00Z", "avg_lat": 22.7, "avg_lon": 69.80000305175781, "positions": [{"lat": 22.7, "lon": 69.80000305175781}], "anomaly_score": 0.2, "signals": {"loitering": 0.042, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.38, "factors": {"proximity": 0.131, "duration": 0.02, "cargo": 1.0, "behaviour": 0.2}}, {"mmsi": 205612000, "vessel_id": "6429fab0d-dc10-f251-91cb-ff85c8117285", "vessel_name": "BASTOGNE", "ship_type": "OTHER_NON_FISHING", "geartype": "TANKER", "cargo_type": "OTHER_NON_FISHING", "flag": "BEL", "imo": "9237747", "length": null, "match_count": 1, "presence_hours": 1.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.80000305175781, "positions": [{"lat": 22.7, "lon": 69.80000305175781}], "anomaly_score": 0.2, "signals": {"loitering": 0.042, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.38, "factors": {"proximity": 0.131, "duration": 0.02, "cargo": 1.0, "behaviour": 0.2}}, {"mmsi": 419001357, "vessel_id": "719dc57c1-11a4-7c5b-c5b5-cdfee90acaec", "vessel_name": "JAG VIRAAT", "ship_type": "OTHER_NON_FISHING", "geartype": "TANKER", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "9307762", "length": null, "match_count": 4, "presence_hours": 4.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.2, "signals": {"loitering": 0.167, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.3704, "factors": {"proximity": 0.07, "duration": 0.08, "cargo": 1.0, "behaviour": 0.2}}, {"mmsi": 403522001, "vessel_id": "b868ec702-2905-3f03-86f7-6fa85197e982", "vessel_name": "JANA", "ship_type": "OTHER_NON_FISHING", "geartype": "TANKER", "cargo_type": "OTHER_NON_FISHING", "flag": "SAU", "imo": "9386938", "length": null, "match_count": 2, "presence_hours": 2.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.9000015258789, "positions": [{"lat": 22.7, "lon": 69.9000015258789}], "anomaly_score": 0.2, "signals": {"loitering": 0.083, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.3686, "factors": {"proximity": 0.087, "duration": 0.04, "cargo": 1.0, "behaviour": 0.2}}, {"mmsi": 370738000, "vessel_id": "49c5a03da-a4f0-e2d6-2295-03b734498a33", "vessel_name": "ARGENT SUNRISE", "ship_type": "OTHER_NON_FISHING", "geartype": "TANKER", "cargo_type": "OTHER_NON_FISHING", "flag": "PAN", "imo": "9392377", "length": null, "match_count": 3, "presence_hours": 3.0, "last_seen": "2023-02-15T08:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.2, "signals": {"loitering": 0.125, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.3664, "factors": {"proximity": 0.07, "duration": 0.06, "cargo": 1.0, "behaviour": 0.2}}, {"mmsi": 566242000, "vessel_id": "a6c7112d6-6381-0e9e-1b98-3b39e88c4e79", "vessel_name": "HAFNIA AFRICA", "ship_type": "OTHER_NON_FISHING", "geartype": "TANKER", "cargo_type": "OTHER_NON_FISHING", "flag": "SGP", "imo": "9467811", "length": null, "match_count": 1, "presence_hours": 1.0, "last_seen": "2023-02-15T06:00:00Z", "avg_lat": 22.7, "avg_lon": 69.9000015258789, "positions": [{"lat": 22.7, "lon": 69.9000015258789}], "anomaly_score": 0.2, "signals": {"loitering": 0.042, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.3646, "factors": {"proximity": 0.087, "duration": 0.02, "cargo": 1.0, "behaviour": 0.2}}, {"mmsi": 236741000, "vessel_id": "560fed34e-e67e-de2f-0934-316d726933ef", "vessel_name": "SEASTAR VULCAN", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "GIB", "imo": "9681900", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.9000015258789, "positions": [{"lat": 22.7, "lon": 69.9000015258789}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1821, "factors": {"proximity": 0.087, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 567269000, "vessel_id": "b53d17789-9f16-7ff7-945d-811e903b2a4f", "vessel_name": "RATTANA NAREE", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "THA", "imo": "9245055", "length": null, "match_count": 5, "presence_hours": 5.0, "last_seen": "2023-02-15T10:00:00Z", "avg_lat": 22.74, "avg_lon": 69.9000015258789, "positions": [{"lat": 22.7, "lon": 69.9000015258789}, {"lat": 22.8, "lon": 69.9000015258789}], "anomaly_score": 0.208, "signals": {"loitering": 0.208, "stationary": 0.0, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1776, "factors": {"proximity": 0.104, "duration": 0.1, "cargo": 0.3, "behaviour": 0.208}}, {"mmsi": 636091717, "vessel_id": "2fd58c8dc-c6f6-74d4-1f91-8ab680349ce5", "vessel_name": "NORTHERN PRACTISE", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "LBR", "imo": "9450301", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 636091384, "vessel_id": "474028bd5-58a7-1e63-73b9-263ec07d8fa3", "vessel_name": "NORTHERN GUARD", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "LBR", "imo": "9348455", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 258026000, "vessel_id": "09da6b25a-aa88-c4f0-b0b5-378d7c0867bb", "vessel_name": "BELYAMATO", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "NOR", "imo": "9942055", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 548849000, "vessel_id": "5b960b71f-fad3-c522-6670-355149ae1003", "vessel_name": "HIMALA", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "PHL", "imo": "9543964", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 352001894, "vessel_id": "fa0631937-7841-774e-7502-ddac2c525265", "vessel_name": "TJ ZARAR", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "PAN", "imo": "9190080", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 257394000, "vessel_id": "7c5503f6a-a929-0fa8-4a84-4954626b7648", "vessel_name": "CYGNUS", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "NOR", "imo": "9401855", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 273291380, "vessel_id": "22e8002fc-cf3c-3593-21d9-b590916b3fa0", "vessel_name": "YAMAL ORLAN", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "RUS", "imo": "9436331", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 255805764, "vessel_id": "a1acab06e-ee96-3002-576b-050d01f99641", "vessel_name": "OSAKA", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "PRT", "imo": "9670834", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 209370000, "vessel_id": "e298d68e2-22ee-b82e-fd9c-6ce93b0fcb58", "vessel_name": "ST. MARY", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "CYP", "imo": "9219252", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 563133400, "vessel_id": "7590d4413-3d07-6167-aa4c-29fa6e57ab80", "vessel_name": "KOTA LAGU", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "SGP", "imo": "9322308", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 419001631, "vessel_id": "7b8a33c6a-ae3c-3079-3fdb-f32879345c6a", "vessel_name": "SM MANALI", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "IND", "imo": "9303742", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1759, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.3, "behaviour": 0.25}}, {"mmsi": 376259000, "vessel_id": "4ee609139-919b-64f6-74b5-c1a92c95d189", "vessel_name": "MARIAM", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "VCT", "imo": "9250323", "length": null, "match_count": 1, "presence_hours": 1.0, "last_seen": "2023-02-15T09:00:00Z", "avg_lat": 22.7, "avg_lon": 69.80000305175781, "positions": [{"lat": 22.7, "lon": 69.80000305175781}], "anomaly_score": 0.2, "signals": {"loitering": 0.042, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.17, "factors": {"proximity": 0.131, "duration": 0.02, "cargo": 0.3, "behaviour": 0.2}}, {"mmsi": 419000401, "vessel_id": "02cb9ed4b-b2b3-7a28-f07a-dc4e4631066f", "vessel_name": "SHREE KRISHNA VII", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "IND", "imo": "8652976", "length": null, "match_count": 3, "presence_hours": 3.0, "last_seen": "2023-02-15T08:00:00Z", "avg_lat": 22.7, "avg_lon": 69.83333587646484, "positions": [{"lat": 22.7, "lon": 69.80000305175781}, {"lat": 22.7, "lon": 69.9000015258789}], "anomaly_score": 0.125, "signals": {"loitering": 0.125, "stationary": 0.0, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1669, "factors": {"proximity": 0.132, "duration": 0.06, "cargo": 0.3, "behaviour": 0.125}}, {"mmsi": 636091291, "vessel_id": "fb1e2a672-2ab0-d010-a763-7b9fad9d5a7d", "vessel_name": "NORTHERN DEDICATION", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "LBR", "imo": "9329631", "length": null, "match_count": 3, "presence_hours": 3.0, "last_seen": "2023-02-15T08:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.2, "signals": {"loitering": 0.125, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1564, "factors": {"proximity": 0.07, "duration": 0.06, "cargo": 0.3, "behaviour": 0.2}}, {"mmsi": 636021234, "vessel_id": "ef6125514-447d-d79c-9954-4b3dc68f7f62", "vessel_name": "SONGA LEOPARD", "ship_type": "CARGO", "geartype": "CARGO", "cargo_type": "CARGO", "flag": "LBR", "imo": "9501772", "length": null, "match_count": 2, "presence_hours": 2.0, "last_seen": "2023-02-15T07:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.2, "signals": {"loitering": 0.083, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1524, "factors": {"proximity": 0.07, "duration": 0.04, "cargo": 0.3, "behaviour": 0.2}}, {"mmsi": 419091200, "vessel_id": "f9c1468f6-609e-56a6-f678-dbf6add89181", "vessel_name": "DOLPHIN NO.15", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1159, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.1, "behaviour": 0.25}}, {"mmsi": 419001744, "vessel_id": "cecfb389b-b405-f62c-a29c-99fe31ab9e6b", "vessel_name": "DOLPHIN NO.38", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "9909314", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1159, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.1, "behaviour": 0.25}}, {"mmsi": 419091100, "vessel_id": "a1c090437-7c31-84fc-8fc3-0554b101b1d8", "vessel_name": "DOLPHIN NO.14", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1159, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.1, "behaviour": 0.25}}, {"mmsi": 419069800, "vessel_id": "dd8da8f34-4a8a-99c3-28f4-9d1d89c8ce16", "vessel_name": "DOLPHIN 07", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "9439565", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1159, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.1, "behaviour": 0.25}}, {"mmsi": 419000315, "vessel_id": "9a14580aa-aa91-affd-7e8c-de24cb811a34", "vessel_name": "DOLPHIN NO.18", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1159, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.1, "behaviour": 0.25}}, {"mmsi": 419091300, "vessel_id": "b0c82815c-c0ab-d9e4-4b8f-904cf2820722", "vessel_name": "DOLPHIN NO.16", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1159, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.1, "behaviour": 0.25}}, {"mmsi": 419001636, "vessel_id": "826eb853d-d99d-a0ba-f6b9-8c42e0d8db5f", "vessel_name": "DOLPHIN NO.33", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "9891294", "length": null, "match_count": 5, "presence_hours": 5.0, "last_seen": "2023-02-15T10:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.208, "signals": {"loitering": 0.208, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1056, "factors": {"proximity": 0.07, "duration": 0.1, "cargo": 0.1, "behaviour": 0.208}}, {"mmsi": 419000117, "vessel_id": "7ae0a7872-2290-f348-197c-d2f874a75367", "vessel_name": "DOLPHIN NO.2", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 5, "presence_hours": 5.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.208, "signals": {"loitering": 0.208, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1056, "factors": {"proximity": 0.07, "duration": 0.1, "cargo": 0.1, "behaviour": 0.208}}, {"mmsi": 419956799, "vessel_id": "d4b2fc156-6b42-4c8d-9d5a-4fd4a6394792", "vessel_name": "SHANTI SAGAR XVI", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 5, "presence_hours": 5.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.208, "signals": {"loitering": 0.208, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.1056, "factors": {"proximity": 0.07, "duration": 0.1, "cargo": 0.1, "behaviour": 0.208}}, {"mmsi": 419000540, "vessel_id": "a3502a60f-f546-674d-b5e3-0d497330a26a", "vessel_name": "JALASHWA-7", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 3, "presence_hours": 3.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.2, "signals": {"loitering": 0.125, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.0964, "factors": {"proximity": 0.07, "duration": 0.06, "cargo": 0.1, "behaviour": 0.2}}, {"mmsi": 419080800, "vessel_id": "10e647e94-4c99-a8d3-5785-a5f8ff7ff50f", "vessel_name": "DOLPHIN NO 10", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "9511583", "length": null, "match_count": 2, "presence_hours": 2.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.2, "signals": {"loitering": 0.083, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.0924, "factors": {"proximity": 0.07, "duration": 0.04, "cargo": 0.1, "behaviour": 0.2}}, {"mmsi": 419956361, "vessel_id": "8f8482d26-6be5-cfa8-d78f-e1a498d137da", "vessel_name": "M T QASWA", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 1, "presence_hours": 1.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.2, "signals": {"loitering": 0.042, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.0884, "factors": {"proximity": 0.07, "duration": 0.02, "cargo": 0.1, "behaviour": 0.2}}, {"mmsi": 419956446, "vessel_id": "4667edc4c-c059-7670-6d42-e4414af5f8c2", "vessel_name": "M.T. K.B.-X", "ship_type": "OTHER_NON_FISHING", "geartype": "OTHER_NON_FISHING", "cargo_type": "OTHER_NON_FISHING", "flag": "IND", "imo": "", "length": null, "match_count": 1, "presence_hours": 1.0, "last_seen": "2023-02-15T10:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.2, "signals": {"loitering": 0.042, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.0884, "factors": {"proximity": 0.07, "duration": 0.02, "cargo": 0.1, "behaviour": 0.2}}, {"mmsi": 419956621, "vessel_id": "ab82dc88e-e357-06af-553a-d80f8bd0d291", "vessel_name": "DOLPHIN 19", "ship_type": "PASSENGER", "geartype": "PASSENGER", "cargo_type": "PASSENGER", "flag": "IND", "imo": "", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.0859, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.0, "behaviour": 0.25}}, {"mmsi": 419956968, "vessel_id": "579c8febb-bdb2-7968-c164-fc45aefa061f", "vessel_name": "SHANTI SAGAR III", "ship_type": "GEAR", "geartype": "GEAR", "cargo_type": "GEAR", "flag": "IND", "imo": "", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.0859, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.0, "behaviour": 0.25}}, {"mmsi": 419956539, "vessel_id": "e1f219220-0049-fc60-ca63-36d2ad15175e", "vessel_name": "JALASHWA-3", "ship_type": "PASSENGER", "geartype": "PASSENGER", "cargo_type": "PASSENGER", "flag": "IND", "imo": "", "length": null, "match_count": 6, "presence_hours": 6.0, "last_seen": "2023-02-15T11:00:00Z", "avg_lat": 22.7, "avg_lon": 69.69999694824219, "positions": [{"lat": 22.7, "lon": 69.69999694824219}], "anomaly_score": 0.25, "signals": {"loitering": 0.25, "stationary": 0.2, "turnaround": 0.0}, "evidence": "lingering / manoeuvring near origin", "transit_ok": true, "transit_reason": "kept", "attribution_score": 0.0859, "factors": {"proximity": 0.07, "duration": 0.12, "cargo": 0.0, "behaviour": 0.25}}], "sar_available": false, "gfw_available": true, "warnings": []}, "audit": [{"action_type": "pipeline_run", "detail": "{\"run_id\": \"run_4d3936757f8c\", \"status\": \"succeeded\"}", "timestamp": "2026-09-04 07:15:22.112964", "actor": "Ravi Kumar", "actor_role": "analyst"}, {"action_type": "pipeline_run", "detail": "{\"run_id\": \"run_4d3936757f8c\", \"triggered\": true}", "timestamp": "2026-09-04 07:12:47.926299", "actor": "Ravi Kumar", "actor_role": "analyst"}, {"action_type": "case_created", "detail": "{\"location\": \"M1 smoke Kandla\"}", "timestamp": "2026-09-04 07:12:47.848701", "actor": "Ravi Kumar", "actor_role": "analyst"}], "users": [{"name": "System Admin", "email": "admin@oilspill.gov", "role": "admin", "status": "active"}, {"name": "Dr. Priya Sharma", "email": "supervisor@oilspill.gov", "role": "supervisor", "status": "active"}, {"name": "Ravi Kumar", "email": "analyst@oilspill.gov", "role": "analyst", "status": "active"}, {"name": "Anita Desai", "email": "analyst2@oilspill.gov", "role": "analyst", "status": "active"}]}</script>
+<script>
+const D = JSON.parse(document.getElementById("payload").textContent);
+const C = D.case, R = D.run, P = D.pipeline;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const KMLAT = 110.574, KMLON = lat => 111.320 * Math.cos(lat * Math.PI / 180);
+const fx = (n, d=2) => (n === null || n === undefined || Number.isNaN(n)) ? "—" : Number(n).toFixed(d);
+
+/* ---------------- banner ---------------- */
+$("banner").innerHTML = "<b>Preview built from your live database.</b> Every value below is read "
+ + "verbatim from <code>oil_spill.db</code> → <code>cases.id=6</code> and its run record. "
+ + "Nothing is simulated, and no number has been recomputed or smoothed. Fields the pipeline "
+ + "stored as <code>null</code> are shown as absent rather than filled in.";
+
+/* ---------------- header ---------------- */
+const stPill = {approved:"p-ok", pending_review:"p-warn", in_progress:"p-acc",
+                returned:"p-bad", closed:"p-mute", insufficient_evidence:"p-mute"};
+$("hdr").innerHTML = `
+ <div class="hdr-top">
+   <div>
+     <div class="eyebrow">Marine oil-spill investigation · Case file</div>
+     <h1>${esc(C.case_number)}</h1>
+     <div class="sub">${esc(C.location_name)} · detection date ${esc(C.detection_date)}</div>
+   </div>
+   <div style="display:flex;gap:7px;flex-wrap:wrap">
+     <span class="pill ${stPill[C.status]||"p-mute"}"><i class="dot"></i>${esc(C.status.replace(/_/g," "))}</span>
+     <span class="pill ${R.status==="succeeded"?"p-ok":"p-mute"}"><i class="dot"></i>run ${esc(R.status)}</span>
+   </div>
+ </div>
+ <div class="meta">
+   <div><div class="mk">Detection point</div><div class="mv">${fx(C.lon,4)}, ${fx(C.lat,4)}</div></div>
+   <div><div class="mk">Run id</div><div class="mv">${esc(R.run_id)}</div></div>
+   <div><div class="mk">Stage</div><div class="mv">${esc(R.current_stage)} · ${fx(R.progress_percent,0)}%</div></div>
+   <div><div class="mk">Pipeline status</div><div class="mv">${esc(P.status)}</div></div>
+   <div><div class="mk">Completed</div><div class="mv">${esc((R.completed_at||"").slice(0,19)||"—")}</div></div>
+ </div>`;
+
+/* ---------------- verdict ---------------- */
+/* What the shipped build renders today: Panel1Detection.jsx:102 thresholds overall_confidence. */
+const oc = C.overall_confidence;
+const shownLabel = oc >= 0.75 ? "Likely oil spill"
+                 : oc >= 0.5  ? "Probable oil spill"
+                 : oc >= 0.25 ? "Uncertain / review required"
+                 : "Likely false detection";
+const nDet = (P.detections || []).length;
+const hasChar = !!P.characterization, hasAge = !!P.age, hasEo = !!P.eo;
+$("verdict").innerHTML = `
+ <div class="vcard shown">
+   <div class="vlab">What the current build displays</div>
+   <div class="vtitle">${esc(shownLabel)}</div>
+   <div class="vnum">${(oc*100).toFixed(0)}<span style="font-size:16px;color:var(--ink3)">% confidence</span></div>
+   <div class="vnote">Rendered from <code>overall_confidence = ${fx(oc,2)}</code>. That number is the mean of
+     the age-confidence ladder and <code>forecast.confidence</code> — and
+     <code>forecast.confidence</code> is the fraction of transport particles that stayed inside the
+     current-field domain. <b>Nothing in that chain measures whether the target is oil.</b></div>
+ </div>
+ <div class="vcard truth">
+   <div class="vlab">What this case's data actually supports</div>
+   <div class="vtitle">No detection evidence — verdict cannot be issued</div>
+   <div class="vnum">${nDet}<span style="font-size:16px;color:var(--ink3)"> slicks detected</span></div>
+   <div class="vnote">SAR was unavailable for this run, so there are <b>zero</b> detections, and
+     characterisation, age and the optical cross-check are all <code>null</code>. The transport model
+     still ran — from the operator-entered point, not from an observed slick — which is why a
+     confidence of ${(oc*100).toFixed(0)}% coexists with no observation of oil.</div>
+ </div>`;
+
+/* ---------------- evidence chain ---------------- */
+const ps = R.provider_status || {};
+const stages = [
+ {n:"01", t:"Detection (SAR)", ok:nDet>0,
+  v:nDet>0?`${nDet} slicks`:"no data", u:`sar_available = ${P.sar_available}`,
+  w:nDet===0?`provider_status.sar = "${ps.sar}" — Sentinel-1 scene was never retrieved`:""},
+ {n:"02", t:"Characterisation", ok:hasChar,
+  v:hasChar?`${fx(P.characterization.total_area_km2,2)} km²`:"not run",
+  u:hasChar?"total_area_km2":"characterization = null",
+  w:hasChar?"":"depends on detections — skipped"},
+ {n:"03", t:"Age estimate", ok:hasAge,
+  v:hasAge?`${fx(P.age.age_hours,1)} h`:"not run",
+  u:hasAge?`${fx(P.age.age_min_hours,1)}–${fx(P.age.age_max_hours,1)} h`:"age = null",
+  w:hasAge?"":"requires slick contrast — skipped"},
+ {n:"04", t:"Optical cross-check", ok:hasEo,
+  v:hasEo?"run":"not run", u:hasEo?"":"eo = null",
+  w:hasEo?"":"Sentinel-2 confirmation absent"},
+ {n:"05", t:"Transport", ok:true,
+  v:"origin fixed", u:`status "${P.status}"`,
+  w:`ran from the entered point, not an observed slick`},
+ {n:"06", t:"AIS + attribution", ok:(P.suspects||[]).length>0,
+  v:`${(P.suspects||[]).length} vessels`, u:`gfw_available = ${P.gfw_available}`,
+  w:"all scored; see integrity notes"}
+];
+$("chain-n").textContent = `${stages.filter(s=>s.ok).length} of 6 stages produced data`;
+$("chain").innerHTML = stages.map(s => `
+ <div class="stage${s.ok?"":" nodata"}">
+   <div class="st-n">${s.n}</div>
+   <div class="st-t">${s.t}</div>
+   <div class="st-v" style="color:${s.ok?"var(--ink)":"var(--ink3)"}">${esc(s.v)}</div>
+   <div class="st-u">${esc(s.u)}</div>
+   ${s.w?`<div class="st-w">${s.w}</div>`:""}
+ </div>`).join("");
+
+/* ---------------- providers ---------------- */
+const pmap = {ok:["p-ok","reachable, returned data"],
+              warn:["p-warn","degraded"],
+              unavailable:["p-bad","not reachable"],
+              no_particles:["p-warn","ran, no particles retained"]};
+$("prov").innerHTML = Object.entries(ps).map(([k,v]) => {
+  const m = pmap[v] || ["p-mute", v];
+  return `<div class="item"><span class="pill ${m[0]}"><i class="dot"></i>${esc(v)}</span>
+          <span><b>${esc(k.toUpperCase())}</b> — ${esc(m[1])}</span></div>`;
+}).join("") + `<div class="item"><span class="pill ${(R.warnings||[]).length?"p-warn":"p-bad"}">
+   <i class="dot"></i>${(R.warnings||[]).length} warnings</span>
+   <span>pipeline emitted <b>${(P.warnings||[]).length}</b> — an unavailable provider left no trace</span></div>`;
+
+/* ---------------- map ---------------- */
+const ob = P.origin_bbox, oc2 = P.origin_centroid, F = P.forecast || {};
+const fb = F.bbox, fc = F.centroid, path = F.median_path || [];
+const vessels = (P.suspects || []).slice();
+const pts = [[C.lon,C.lat], oc2, fc, ...path,
+             [ob[0],ob[1]],[ob[2],ob[3]],[fb[0],fb[1]],[fb[2],fb[3]],
+             ...vessels.map(v=>[v.avg_lon,v.avg_lat])].filter(p=>p&&p.length===2);
+const lons = pts.map(p=>p[0]), lats = pts.map(p=>p[1]);
+const padx = (Math.max(...lons)-Math.min(...lons))*0.10 || 0.02;
+const pady = (Math.max(...lats)-Math.min(...lats))*0.12 || 0.02;
+const X0 = Math.min(...lons)-padx, X1 = Math.max(...lons)+padx;
+const Y0 = Math.min(...lats)-pady, Y1 = Math.max(...lats)+pady;
+const W=960,H=520,M={l:52,r:16,t:16,b:34};
+const sx = x => M.l + (x-X0)/(X1-X0)*(W-M.l-M.r);
+const sy = y => H-M.b - (y-Y0)/(Y1-Y0)*(H-M.t-M.b);
+
+let g = "";
+/* graticule */
+const nx=6, ny=5;
+for(let i=0;i<=nx;i++){const lo=X0+(X1-X0)*i/nx, x=sx(lo);
+  g+=`<line x1="${x}" y1="${M.t}" x2="${x}" y2="${H-M.b}" stroke="#1c2a38" stroke-width="1"/>
+      <text x="${x}" y="${H-M.b+16}" fill="#6b7b8c" font-size="10" font-family="ui-monospace,monospace" text-anchor="middle">${lo.toFixed(3)}°E</text>`;}
+for(let i=0;i<=ny;i++){const la=Y0+(Y1-Y0)*i/ny, y=sy(la);
+  g+=`<line x1="${M.l}" y1="${y}" x2="${W-M.r}" y2="${y}" stroke="#1c2a38" stroke-width="1"/>
+      <text x="${M.l-7}" y="${y+3}" fill="#6b7b8c" font-size="10" font-family="ui-monospace,monospace" text-anchor="end">${la.toFixed(3)}°N</text>`;}
+
+/* forecast bbox */
+g += `<rect x="${sx(fb[0])}" y="${sy(fb[3])}" width="${sx(fb[2])-sx(fb[0])}" height="${sy(fb[1])-sy(fb[3])}"
+       fill="#e8963c" fill-opacity=".08" stroke="#e8963c" stroke-width="1.4" stroke-dasharray="7 4" rx="2"/>
+      <text x="${sx(fb[0])+7}" y="${sy(fb[3])+15}" fill="#f0b464" font-size="10.5"
+       font-family="ui-monospace,monospace">forward spread envelope</text>`;
+/* origin bbox */
+g += `<rect x="${sx(ob[0])}" y="${sy(ob[3])}" width="${sx(ob[2])-sx(ob[0])}" height="${sy(ob[1])-sy(ob[3])}"
+       fill="#3d8fd6" fill-opacity=".11" stroke="#3d8fd6" stroke-width="1.4" rx="2"/>
+      <text x="${sx(ob[0])+7}" y="${sy(ob[3])+15}" fill="#7fbdf0" font-size="10.5" font-family="ui-monospace,monospace">origin search region</text>`;
+
+/* median path */
+if(path.length){
+  g += `<polyline points="${path.map(p=>`${sx(p[0])},${sy(p[1])}`).join(" ")}"
+         fill="none" stroke="#e8963c" stroke-width="2.2" stroke-linejoin="round" opacity=".9"/>`;
+  path.forEach((p,i)=>{ if(i%4===0) g+=`<circle cx="${sx(p[0])}" cy="${sy(p[1])}" r="2.1" fill="#e8963c" opacity=".75"/>`; });
+}
+
+/* vessel grid cells */
+const cell = 0.1, byCell = {};
+vessels.forEach(v=>{ const k=`${v.avg_lon.toFixed(3)}|${v.avg_lat.toFixed(3)}`;
+  (byCell[k] = byCell[k] || {lon:v.avg_lon, lat:v.avg_lat, list:[]}).list.push(v); });
+Object.values(byCell).forEach(cl=>{
+  const x=sx(cl.lon-cell/2), y=sy(cl.lat+cell/2), w=sx(cl.lon+cell/2)-x, h=sy(cl.lat-cell/2)-y;
+  g += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#c7566b" fill-opacity=".10"
+         stroke="#c7566b" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle cx="${sx(cl.lon)}" cy="${sy(cl.lat)}" r="${Math.min(17, 6+cl.list.length*0.9)}"
+         fill="#c7566b" fill-opacity=".42" stroke="#e8879a" stroke-width="1.3"/>
+        <text x="${sx(cl.lon)}" y="${sy(cl.lat)+4}" fill="#fff" font-size="11" font-weight="700"
+         font-family="ui-monospace,monospace" text-anchor="middle">${cl.list.length}</text>`;
+});
+
+/* centroids + detection point */
+const cross = (x,y,c,r=8) => `<line x1="${x-r}" y1="${y}" x2="${x+r}" y2="${y}" stroke="${c}" stroke-width="2"/>
+                              <line x1="${x}" y1="${y-r}" x2="${x}" y2="${y+r}" stroke="${c}" stroke-width="2"/>`;
+g += cross(sx(oc2[0]), sy(oc2[1]), "#7fbdf0");
+g += `<circle cx="${sx(oc2[0])}" cy="${sy(oc2[1])}" r="4.5" fill="#3d8fd6" stroke="#0d1620" stroke-width="1.5"/>`;
+g += cross(sx(fc[0]), sy(fc[1]), "#f0b464");
+g += `<circle cx="${sx(fc[0])}" cy="${sy(fc[1])}" r="4.5" fill="#e8963c" stroke="#0d1620" stroke-width="1.5"/>`;
+g += `<rect x="${sx(C.lon)-5}" y="${sy(C.lat)-5}" width="10" height="10" fill="#f2f6fa"
+       stroke="#0d1620" stroke-width="1.5" transform="rotate(45 ${sx(C.lon)} ${sy(C.lat)})"/>`;
+$("map").innerHTML = g;
+
+const obW = (ob[2]-ob[0])*KMLON(oc2[1]), obH = (ob[3]-ob[1])*KMLAT;
+const fbW = (fb[2]-fb[0])*KMLON(fc[1]),  fbH = (fb[3]-fb[1])*KMLAT;
+const dOrigin = Math.hypot((oc2[0]-C.lon)*KMLON(C.lat), (oc2[1]-C.lat)*KMLAT);
+$("map-n").textContent = `origin region ${obW.toFixed(1)} × ${obH.toFixed(1)} km · forecast ${fbW.toFixed(1)} × ${fbH.toFixed(1)} km`;
+$("legend").innerHTML = [
+ ['<span class="sw" style="background:#f2f6fa;transform:rotate(45deg)"></span>',
+  `operator-entered detection point · ${fx(C.lon,3)}, ${fx(C.lat,3)}`],
+ ['<span class="sw" style="background:#3d8fd6"></span>',
+  `backward origin centroid · ${dOrigin.toFixed(1)} km from entry point`],
+ ['<span class="sw" style="background:#3d8fd6;opacity:.35"></span>',
+  `origin search region · <b>bounding box only, no confidence ellipse, no time window</b>`],
+ ['<span class="sw" style="background:#e8963c"></span>',
+  `forward median path · ${path.length} steps`],
+ ['<span class="sw" style="background:#e8963c;opacity:.35"></span>',
+  `spread envelope · <b>box, not a percentile cone</b>`],
+ ['<span class="sw" style="background:#c7566b"></span>',
+  `AIS presence cells · ${Object.keys(byCell).length} distinct 0.1° cells for ${vessels.length} vessels`]
+].map(([s,t]) => `<div class="lg">${s}<span>${t}</span></div>`).join("");
+
+/* ---------------- vessel table ---------------- */
+vessels.sort((a,b) => (b.attribution_score||0) - (a.attribution_score||0));
+const scores = vessels.map(v=>v.attribution_score||0);
+const top = Math.max(...scores), nTop = scores.filter(s=>s===top).length;
+const distinct = new Set(scores).size;
+$("ves-n").textContent = `${vessels.length} candidates · ${distinct} distinct scores · range ${Math.min(...scores).toFixed(3)}–${top.toFixed(3)}`;
+
+const FK = ["proximity","cargo","duration","behaviour"], FW = {proximity:.35,cargo:.30,duration:.20,behaviour:.15};
+$("vtab").innerHTML = `<thead><tr>
+  <th>#</th><th>Vessel</th><th>MMSI</th><th>Flag</th><th>Type</th>
+  <th>Score</th><th>Factors<br><span style="font-weight:400;text-transform:none;letter-spacing:0">prox/cargo/dur/behav</span></th>
+  <th>Prox</th><th>Hours</th><th>Cell</th><th>Assessment</th></tr></thead><tbody>` +
+ vessels.slice(0,15).map((v,i) => {
+   const f = v.factors || {};
+   return `<tr>
+     <td class="rank">${i+1}${i<nTop&&nTop>1?` <span class="tie">TIE</span>`:""}</td>
+     <td class="vname">${esc(v.vessel_name||"—")}</td>
+     <td class="m">${esc(v.mmsi)}</td>
+     <td class="m">${esc(v.flag||"—")}</td>
+     <td style="font-size:11px;color:var(--ink2)">${esc((v.ship_type||"").replace(/_/g," ").toLowerCase())}</td>
+     <td class="m"><b>${fx(v.attribution_score,4)}</b><br><span class="bar"><i style="width:${(v.attribution_score/0.4*100).toFixed(0)}%"></i></span></td>
+     <td><div class="fx">${FK.map(k=>`<span style="height:22px"><i style="height:${((f[k]||0)*22).toFixed(0)}px"></i></span>`).join("")}</div></td>
+     <td class="m" style="color:${(f.proximity||0)<0.2?"var(--bad)":"var(--ink)"}">${fx(f.proximity,3)}</td>
+     <td class="m">${fx(v.presence_hours,0)}</td>
+     <td class="m" style="font-size:11px;color:var(--ink3)">${fx(v.avg_lon,2)}, ${fx(v.avg_lat,2)}</td>
+     <td><span class="pill p-mute"><i class="dot"></i>candidate source</span></td>
+   </tr>`; }).join("") + `</tbody>`;
+
+/* ---------------- uncertainty ---------------- */
+const factors = [
+ ["Detector / model confidence", false, "detect_dark_spots returns no per-detection score"],
+ ["Image quality", false, "not computed anywhere in the pipeline"],
+ ["Temporal persistence", false, "max_products = 1 — single scene only"],
+ ["CFAR / U-Net / EO agreement", false, "no U-Net checkpoint committed; EO never receives the SAR detections"],
+ ["Weather / current consistency", false, "not computed"],
+ ["Look-alike risk", false, "frontend fabricates it as 1 − confidence, not an independent test"],
+ ["Transport uncertainty", true, `spread_deg ${fx(F.spread_deg?.[0],4)}, ${fx(F.spread_deg?.[1],4)} · dominated by a fixed diffusion constant`],
+ ["Independent sensor agreement", false, "no second sensor wired in"]
+];
+$("uc-n").textContent = `${factors.filter(f=>f[1]).length} of 8 available`;
+$("uc").innerHTML = factors.map(([n,ok,w]) => `
+ <div class="ucr${ok?"":" absent"}">
+   <div><div class="ucn">${esc(n)}</div><div class="ucw">${w}</div></div>
+   <span class="pill ${ok?"p-warn":"p-mute"}"><i class="dot"></i>${ok?"partial":"unavailable"}</span>
+ </div>`).join("");
+
+/* ---------------- notes ---------------- */
+const cargo1 = vessels.filter(v=>(v.factors||{}).cargo===1.0).length;
+const maxProx = Math.max(...vessels.map(v=>(v.factors||{}).proximity||0));
+const transitOk = vessels.filter(v=>v.transit_ok).length;
+const notes = [
+ ["crit", `<b>Confidence of ${(oc*100).toFixed(0)}% on zero observations.</b> This case stored
+   <code>overall_confidence = ${fx(oc,2)}</code> while <code>detections</code> is empty and
+   <code>characterization</code>, <code>age</code> and <code>eo</code> are all <code>null</code>.
+   <code>forecast.confidence = ${fx(F.confidence,2)}</code> is particle retention, so a run in which
+   the satellite was never reached still produces a maximal score.`],
+ ["crit", `<b>An unavailable provider left no trace.</b> <code>provider_status.sar = "${ps.sar}"</code>
+   on the run record, yet <code>sar_available = ${P.sar_available}</code> inside the result and
+   <code>warnings</code> is an empty array. A UI reading only <code>pipeline_result</code> cannot tell
+   a failed download from a genuinely clean scene.`],
+ ["crit", `<b>Vessel positions are ${Object.keys(byCell).length} grid cells, not ${vessels.length} tracks.</b>
+   Every vessel resolves to one of ${Object.keys(byCell).length} distinct 0.1° GFW presence-grid
+   centres — roughly 11 km across. Proximity is therefore measured against a cell, not a ship, so
+   the 35%-weighted factor cannot support a claim about which vessel was nearest.`],
+ ["hi", `<b>Rank 1 is a coin flip.</b> ${nTop} vessels tie at exactly <code>${top.toFixed(4)}</code>, and
+   41 vessels share only ${distinct} distinct scores. <code>Panel6Attribution.jsx:72</code> labels
+   whichever sorts first “Probable source vessel” purely by position.`],
+ ["hi", `<b>No vessel is actually close.</b> The highest proximity factor across all ${vessels.length}
+   candidates is <code>${maxProx.toFixed(3)}</code>. Meanwhile ${cargo1} vessels score a full
+   <code>1.0</code> on cargo, so the ranking is driven by the cargo term rather than by any spatial link.`],
+ ["hi", `<b>The transit filter removed nothing.</b> <code>transit_ok</code> is true for
+   ${transitOk} of ${vessels.length} vessels, so candidate reduction for this case is
+   ${vessels.length} → ${transitOk} — a ratio of 1.00. There is no narrowing to report.`],
+ ["hi", `<b>Origin is a box, not a distribution.</b> The ${obW.toFixed(1)} × ${obH.toFixed(1)} km
+   region carries no confidence ellipse and no time window. The tracker does compute a positional
+   standard deviation, and <code>pipeline.py:300</code> discards it before it reaches the API.`],
+ ["info", `<b>Reproducibility.</b> <code>input_scene_ids</code>, <code>metocean_data_ids</code> and
+   <code>model_version_ids</code> are all empty on this run, and the integrators seed no RNG — so
+   re-running this case would not reproduce this origin exactly.`]
+];
+$("notes").innerHTML = notes.map(([t,h]) =>
+  `<div class="note"><span class="tag t-${t}">${t==="crit"?"CRITICAL":t==="hi"?"HIGH":"NOTE"}</span><div>${h}</div></div>`).join("");
+
+/* ---------------- audit ---------------- */
+$("aud-n").textContent = `${(D.audit||[]).length} entries for this case`;
+$("aud").innerHTML = (D.audit||[]).length
+ ? D.audit.map(a => `<div class="row"><span class="ts">${esc((a.timestamp||"").slice(0,19))}</span>
+     <span class="ac">${esc(a.action_type)}</span>
+     <span class="dt">${esc(a.actor||"—")} (${esc(a.actor_role||"?")}) · ${esc(a.detail||"")}</span></div>`).join("")
+ : `<div style="color:var(--ink3)">No audit entries.</div>`;
+
+$("foot").innerHTML = `Rendered from <code>oil_spill.db</code> · case ${esc(C.case_number)} ·
+  run ${esc(R.run_id)} · pipeline blob ${JSON.stringify(P).length.toLocaleString()} chars<br>
+  This is a read-only preview of real stored output. It is not the React application running.`;
+</script>
+</body>
+</html>

@@ -685,10 +685,13 @@ def get_case_audit(
 
 
 def _extract_confidence(result: dict) -> Optional[float]:
-    age = result.get("age", {})
-    forecast = result.get("forecast", {})
-    c1 = age.get("confidence")
-    c2 = forecast.get("confidence")
-    if c1 is not None and c2 is not None:
-        return round((c1 + c2) / 2, 3)
-    return c1 or c2
+    """Detection confidence for Case.overall_confidence.
+
+    Previously this did ``result.get("age", {}).get("confidence")``. When a run
+    has no detections the pipeline stores ``age`` as ``None``, and a present key
+    with a ``None`` value means the ``{}`` default never applies — so this raised
+    AttributeError before the surrounding commit, discarding the whole
+    pipeline_result and leaving every case in state "error".
+    """
+    from engines.assessment import stored_confidence
+    return stored_confidence(result or {})

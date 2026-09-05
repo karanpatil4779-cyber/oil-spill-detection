@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: oil-spill-attribution-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "480"
+      - key: CDSE_USERNAME
+        sync: false
+      - key: CDSE_PASSWORD
+        sync: false
+      - key: CMEMS_USERNAME
+        sync: false
+      - key: CMEMS_PASSWORD
+        sync: false
+      - key: GFW_API_KEY
+        sync: false
+      - key: ERA5_API_KEY
+        sync: false
+      - key: DEBUG
+        value: "False"
