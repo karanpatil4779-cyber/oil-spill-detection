@@ -28,7 +28,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from apps.db.models import Run, Case, SessionLocal, ModelVersion
 
@@ -461,15 +461,25 @@ def cancel_run(run_id: str) -> bool:
 
 
 def _hard_fail_stale_runs():
-    """Force-fail runs that are still 'running' past the timeout window."""
+    """Force-fail runs that are still 'running' past the timeout window.
+
+    ``started_at`` may be returned by the driver as a timezone-aware
+    datetime (timestamptz column) or naive depending on driver/column type.
+    Normalise both sides to UTC so the comparison never raises TypeError
+    (which previously silently swallowed the whole sweep)."""
     db = SessionLocal()
     try:
-        deadline = datetime.utcnow() - timedelta(seconds=STAGE_TIMEOUT_SECONDS)
-        stale = db.query(Run).filter(
-            Run.status == "running",
-            Run.started_at < deadline,
-        ).all()
+        now = datetime.now(timezone.utc)
+        stale = db.query(Run).filter(Run.status == "running").all()
+        failed = 0
         for run in stale:
+            started = run.started_at or run.created_at
+            if started is None:
+                continue
+            if started.tzinfo is None:
+                started = started.replace(tzinfo=timezone.utc)
+            if now - started <= timedelta(seconds=STAGE_TIMEOUT_SECONDS):
+                continue
             run.status = "failed"
             run.error_details = {
                 "type": "StageTimeout",
@@ -480,9 +490,10 @@ def _hard_fail_stale_runs():
             if case:
                 case.pipeline_status = "error"
                 case.updated_at = _now()
-        if stale:
+            failed += 1
+        if failed:
             db.commit()
-            logger.warning(f"Watchdog force-failed {len(stale)} stale run(s)")
+            logger.warning(f"Watchdog force-failed {failed} stale run(s)")
     except Exception as e:  # noqa: BLE001
         logger.error(f"Watchdog error: {e}")
     finally:
