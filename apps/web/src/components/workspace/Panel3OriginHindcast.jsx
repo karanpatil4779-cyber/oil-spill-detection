@@ -8,6 +8,7 @@ export default function Panel3OriginHindcast({ data, readOnly, onChangeSource, o
   const centroid = data.origin_centroid;
   const bbox = data.origin_bbox;
   const age = data.age || {};
+  const zone = data.origin_zone || null;
 
   return (
     <div className="workspace-panel">
@@ -34,6 +35,28 @@ export default function Panel3OriginHindcast({ data, readOnly, onChangeSource, o
                 <span className="stat-label">Centroid</span>
                 <span className="stat-value mono">{centroid[0].toFixed(4)}, {centroid[1].toFixed(4)}</span>
               </div>
+              {zone && (
+                <div className="origin-stat">
+                  <span className="stat-label">Ensemble confidence</span>
+                  <span className="stat-value" style={{ color: zone.confidence === "Tight" ? "#10b981" : zone.confidence === "Moderate" ? "#f59e0b" : "#6b7280" }}>
+                    {zone.confidence}
+                  </span>
+                </div>
+              )}
+              {zone && (
+                <div className="origin-stat">
+                  <span className="stat-label">1&sigma; dispersion</span>
+                  <span className="stat-value mono small">
+                    {zone.sigma_km?.[0].toFixed(1)} &times; {zone.sigma_km?.[1].toFixed(1)} km (ellipse area ~{zone.area_km2.toFixed(0)} km&sup2;)
+                  </span>
+                </div>
+              )}
+              {zone && zone.survival != null && (
+                <div className="origin-stat">
+                  <span className="stat-label">Particle survival</span>
+                  <span className="stat-value">{Math.round(zone.survival * 100)}%</span>
+                </div>
+              )}
               {bbox && (
                 <div className="origin-stat">
                   <span className="stat-label">Uncertainty Region (BBox)</span>
@@ -44,9 +67,10 @@ export default function Panel3OriginHindcast({ data, readOnly, onChangeSource, o
               )}
             </div>
             <p className="panel-note">
-              Shaded region represents the probable origin area with uncertainty bounds.
-              This is <strong>not</strong> a pin-point location. When the age interval is wide,
-              multiple plausible release-time scenarios contribute to this region.
+              Origin is an ensemble probability zone, not a pin-point location. The
+              ellipse describes the 1-sigma spread of backward-traced drift particles
+              with the stated confidence. When the age interval is wide, multiple
+              plausible release-time scenarios contribute to this region.
             </p>
           </div>
         ) : (

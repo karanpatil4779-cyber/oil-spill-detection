@@ -38,12 +38,16 @@ class PipelineOutput:
     # [lon, lat]. Computed by the tracker; surfaced so the UI can draw an
     # uncertainty region instead of implying the centroid is a fix.
     origin_std_dev: Optional[List[float]] = None
+    # Analyst-facing probabilistic origin zone (see engines/transport/origin_zone)
+    origin_zone: Optional[Dict] = None
     detections: List[Dict] = field(default_factory=list)
     characterization: Optional[Dict] = None
     age: Optional[Dict] = None
     eo: Optional[Dict] = None
     forecast: Optional[Dict] = None
     suspects: List[Dict] = field(default_factory=list)
+    # Look-alike screening summary (Feature 2), attached after the SAR stage.
+    lookalike_filter: Optional[Dict] = None
     # ``*_available`` means "the provider was called and returned usable data".
     # It is deliberately NOT set from a successful constructor. ``*_requested``
     # distinguishes "we never asked" from "we asked and it failed" — without it
@@ -184,9 +188,10 @@ def _run_transport(metocean_file, lon, lat, time, duration_hours):
     tracker = LagrangianTracker(metocean_file)
     particles = tracker.track_backward(lon, lat, time, duration_hours)
     if not particles:
-        return None, None
+        return None, None, 0, 0
     origin = tracker.compute_origin_probability(particles)
-    return origin, tracker
+    num_launched = 100  # default ensemble size used by track_backward
+    return origin, tracker, len(particles), num_launched
 
 
 def _run_ais(origin, detection_time, duration_hours):
@@ -311,14 +316,17 @@ def _run_ais(origin, detection_time, duration_hours):
     return suspects, available, warnings
 
 
-def _run_attribution(suspects, origin_centroid):
+def _run_attribution(suspects, origin_centroid, history=None, window_hours=24):
     ranker = AttributionRanker()
     cargo = {}
     for s in suspects:
         m = s.get("mmsi", 0)
         if m:
             cargo[m] = s.get("cargo_type", s.get("ship_type", "Unknown"))
-    return ranker.rank_vessels(suspects, origin_centroid, cargo)
+    return ranker.rank_vessels(
+        suspects, origin_centroid, cargo,
+        history=history, window_hours=window_hours,
+    )
 
 
 def run_pipeline(
@@ -330,6 +338,7 @@ def run_pipeline(
     run_sar: bool = False,
     sar_date: Optional[str] = None,
     progress_callback=None,
+    suspect_history: Optional[Dict[int, Dict]] = None,
 ) -> PipelineOutput:
     """Execute the full 6-stage pipeline.
 
@@ -337,6 +346,11 @@ def run_pipeline(
     progress_percent: float)`` invoked at stage boundaries. It is a pure
     instrumentation hook used by the async job runner to persist progress;
     it does not alter any scientific computation.
+
+    ``suspect_history`` is a map of MMSI -> {"count": int, "incidents":
+    [case_number]} from real prior-attribution records (repeat-offender
+    profiling). It is optional and never fabricated by the pipeline — if the
+    caller has no history it is simply omitted from ranking.
     """
     def _progress(stage: str, pct: float):
         if progress_callback:
@@ -361,6 +375,31 @@ def run_pipeline(
         out.sar_scenes_used = det_res["scenes_used"]
         out.warnings += det_res["warnings"]
         out.detections = det_res["detections"]
+
+        # Look-alike screening: rule out biogenic slicks / low-wind zones / other
+        # false positives BEFORE attribution starts (Feature 2). Uses the real
+        # metocean wind for the environmental gate.
+        if out.detections:
+            _progress("characterization", 8.0)
+            from engines.detection.lookalike import screen_lookalikes
+            from engines.aging.oil_age import extract_mean_wind
+            mean_wind = None
+            try:
+                mean_wind = extract_mean_wind(
+                    resolve_metocean_file(incident_id), lon, lat,
+                    detection_time, window_hours)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Look-alike wind gate skipped: {e}")
+            filtered = screen_lookalikes(out.detections, mean_wind_ms=mean_wind)
+            out.detections = filtered["detections"]
+            out.lookalike_filter = filtered["summary"]
+            flagged = filtered["summary"].get("flagged", 0)
+            if flagged:
+                out.warnings.append(
+                    f"Look-alike screening flagged {flagged} of "
+                    f"{filtered['summary'].get('screened', 0)} dark-spot "
+                    "candidate(s) as probable non-oil (biogenic/low-wind/artefact)")
+
         if out.detections:
             _progress("characterization", 12.0)
             out.characterization = _run_characterization(out.detections)
@@ -376,17 +415,23 @@ def run_pipeline(
     _progress("metocean", 22.0)
     metocean_file = resolve_metocean_file(incident_id)
     _progress("transport", 30.0)
-    origin, tracker = _run_transport(metocean_file, lon, lat, detection_time, duration_hours)
+    origin, tracker, n_particles, n_launched = _run_transport(metocean_file, lon, lat, detection_time, duration_hours)
     if not origin:
         out.status = "no_particles"
         out.warnings.append("No transport particles remained in data domain")
         _progress("transport", 100.0)
         return out
-    out.origin_centroid = origin["centroid"]
-    out.origin_bbox = origin["bbox"]
+    out.origin_centroid = [float(c) for c in origin["centroid"]]
+    out.origin_bbox = [float(b) for b in origin["bbox"]]
     # Carry the particle-cloud spread through instead of dropping it, so the
     # origin can be drawn as a region rather than implied to be a fix.
     out.origin_std_dev = origin.get("std_dev")
+    # Probabilistic origin zone (Feature 7): an ensemble area with certainty,
+    # not a single fraudulent point-fix.
+    from engines.transport.origin_zone import build_origin_zone
+    out.origin_zone = build_origin_zone(
+        origin.get("centroid"), origin.get("std_dev"),
+        particle_count=n_particles, particles_total=n_launched)
     _progress("transport", 55.0)
 
     # Stage 4b: Forward drift forecast (predict future flow of the slick)
@@ -417,7 +462,22 @@ def run_pipeline(
     TOP_SUSPECTS = 5
     if out.suspects:
         _progress("attribution", 92.0)
-        out.suspects = _run_attribution(out.suspects, origin["centroid"])[:TOP_SUSPECTS]
+        # Dark-vessel / AIS-gap fusion (Feature 1): SAR dark spots with no
+        # co-located AIS track become top candidates — the PS's "unattributable".
+        from engines.attribution.dark_vessel import fuse_dark_vessels
+        out.suspects = fuse_dark_vessels(
+            out.suspects, out.detections,
+            window_hours=duration_hours, incident_id=out.incident_id)
+        out.suspects = _run_attribution(
+            out.suspects, origin["centroid"],
+            history=suspect_history, window_hours=duration_hours,
+        )[:TOP_SUSPECTS]
+        dark = [s for s in out.suspects if s.get("dark_vessel")]
+        if dark:
+            out.warnings.append(
+                "Dark-vessel signal: at least one SAR dark spot has no matching "
+                "AIS track and is ranked as a primary source candidate "
+                "(AIS may be deliberately disabled).")
 
     _progress("attribution", 100.0)
     return out

@@ -34,6 +34,7 @@ export default function Workspace() {
   const [loading, setLoading] = useState(true);
   const [runStatus, setRunStatus] = useState(null);
   const [supervisorNote, setSupervisorNote] = useState(null);
+  const [enableSar, setEnableSar] = useState(true);
 
   const loadCase = useCallback(async () => {
     try {
@@ -58,7 +59,7 @@ export default function Workspace() {
 
   const startPipeline = async () => {
     try {
-      const res = await apiPost(`/cases/${caseId}/runs`, { run_sar: false });
+      const res = await apiPost(`/cases/${caseId}/runs`, { run_sar: enableSar });
       setRunStatus({ run_id: res.run_id, status: res.status });
       await loadCase();
       pollRun(res.run_id);
@@ -166,9 +167,20 @@ export default function Workspace() {
         </div>
         <div className="workspace-actions">
           {isEditable && !hasData && !isRunning && (
-            <button className="btn-primary" onClick={startPipeline}>
-              Run Pipeline
-            </button>
+            <>
+              <label className="sar-toggle-label" title="Fetch Sentinel-1/2 imagery for this incident. Pre-2014 incidents have no Sentinel-1 coverage.">
+                <input
+                  type="checkbox"
+                  className="sar-toggle"
+                  checked={enableSar}
+                  onChange={(e) => setEnableSar(e.target.checked)}
+                />
+                SAR &amp; Optical detection
+              </label>
+              <button className="btn-primary" onClick={startPipeline}>
+                Run Pipeline
+              </button>
+            </>
           )}
           {hasData && isEditable && (
             <>
@@ -235,6 +247,15 @@ export default function Workspace() {
             <p>
               <strong>Date:</strong> {caseData.detection_date}
             </p>
+            <label className="sar-toggle-label" title="Fetch Sentinel-1/2 imagery for this incident. Pre-2014 incidents have no Sentinel-1 coverage.">
+              <input
+                type="checkbox"
+                className="sar-toggle"
+                checked={enableSar}
+                onChange={(e) => setEnableSar(e.target.checked)}
+              />
+              SAR &amp; Optical detection
+            </label>
             <button className="btn-primary btn-lg" onClick={startPipeline}>
               Run Detection Pipeline
             </button>

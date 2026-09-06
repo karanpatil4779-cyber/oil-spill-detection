@@ -72,16 +72,24 @@ export default function Panel5AISVessels({ data, readOnly, onFilterChange, onRer
                 <div className="vessel-header">
                   <span className="vessel-rank">#{i + 1}</span>
                   <span className="vessel-name">{s.vessel_name}</span>
+                  {s.dark_vessel && (
+                    <span className="dark-vessel-badge" title="SAR dark spot with no co-located AIS track">DARK</span>
+                  )}
                   <span className="vessel-score">{s.attribution_score?.toFixed(2)}</span>
                 </div>
                 <div className="vessel-details">
-                  <span>{s.ship_type} / {s.cargo_type}</span>
-                  <span>Flag: {s.flag}</span>
+                  <span>{s.dark_vessel ? "SAR-only (no AIS)" : `${s.ship_type} / ${s.cargo_type}`}</span>
+                  <span>Flag: {s.flag || "—"}</span>
                   <span className="mono">MMSI: {s.mmsi}</span>
                 </div>
                 <div className="vessel-meta">
-                  <span>Presence: {s.match_count}h</span>
+                  <span>Presence: {s.match_count || (s.dark_vessel ? "0 (no AIS)" : 0)}h</span>
                   <span>Last seen: {s.last_seen || "—"}</span>
+                  {s.ais_gap_hours != null && (
+                    <span className="ais-gap" title="Hours inside the origin window with no AIS transmissions">
+                      AIS gap: {s.ais_gap_hours}h
+                    </span>
+                  )}
                 </div>
                 {s.signals && (
                   <div className="vessel-anomaly">

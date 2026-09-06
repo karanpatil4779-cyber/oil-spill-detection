@@ -31,6 +31,7 @@ export default function Panel1Detection({ data, readOnly, onFalsePositive }) {
 
   const sarState = providers.sar || (data.sar_requested === false ? "not_requested" : null);
   const gfwState = providers.gfw || null;
+  const composite = data.composite_confidence || null;
 
   return (
     <div className="workspace-panel">
@@ -111,8 +112,42 @@ export default function Panel1Detection({ data, readOnly, onFalsePositive }) {
                 {PROVIDER_TEXT[gfwState] || (data.gfw_available ? "Connected" : "Unavailable")}
               </span>
             </div>
+            {composite && (
+              <div className="detection-stat">
+                <span className="stat-label">Composite confidence</span>
+                <span
+                  className="stat-value"
+                  style={{ color: composite.score >= 0.7 ? "#10b981" : composite.score >= 0.4 ? "#f59e0b" : "#6b7280" }}
+                  title={`Composed from: ${Object.keys(composite.components || {}).join(", ")} (geometric mean)`}
+                >
+                  {composite.label}
+                  <span className="stat-sub"> ({formatConfidence(composite.score)})</span>
+                </span>
+              </div>
+            )}
           </div>
         </div>
+
+        {data.lookalike_filter && (
+          <div className="panel-card">
+            <h4>Look-alike screening</h4>
+            <p className="panel-note">
+              Biogenic slicks, low-wind films and wake artefacts were screened out
+              before attribution. Flagged{" "}
+              <strong>{data.lookalike_filter.flagged || 0}</strong> of{" "}
+              <strong>{data.lookalike_filter.screened || 0}</strong> dark-spot
+              candidate(s)
+              {data.lookalike_filter.mean_wind_ms != null &&
+                ` at mean wind ${data.lookalike_filter.mean_wind_ms.toFixed(1)} m/s`}
+              .
+            </p>
+            {data.lookalike_filter.reasons?.length > 0 && (
+              <ul className="risk-factors">
+                {data.lookalike_filter.reasons.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            )}
+          </div>
+        )}
 
         {assessment.reasons && assessment.reasons.length > 0 && (
           <div className="panel-card warning-card">

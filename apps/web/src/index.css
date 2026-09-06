@@ -308,6 +308,22 @@ body { background: #0b1120; color: #e2e8f0; }
 .factor-bar-fill { height: 100%; background: #3b82f6; border-radius: 4px; transition: width 0.3s; }
 .factor-weight { font-size: 11px; color: #64748b; width: 40px; text-align: right; }
 
+/* ---- Evidence reasons / dark vessel / repeat offender ---- */
+.evidence-reasons { margin: 10px 0 8px; padding: 8px 12px; background: #0f172a; border-radius: 8px; }
+.evidence-title { display: block; font-size: 11px; font-weight: 600; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+.evidence-reasons ul { margin: 0; padding-left: 18px; }
+.evidence-reasons li { font-size: 12px; color: #cbd5e1; margin: 2px 0; }
+.dark-vessel-badge {
+  display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 10px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  background: #7f1d1d; color: #fecaca; border: 1px solid #ef4444;
+}
+.repeat-offender { color: #fbbf24; font-size: 12px; margin: 6px 0; }
+.ais-gap { color: #f59e0b; font-size: 12px; }
+.stat-sub { font-size: 11px; color: #94a3b8; }
+.sar-toggle { margin-right: 5px; accent-color: #3b82f6; }
+.sar-toggle-label { font-size: 12px; color: #cbd5e1; display: inline-flex; align-items: center; cursor: pointer; }
+
 /* ---- Override Dialog ---- */
 .override-dialog { border: 1px solid #f59e0b; }
 .override-dialog textarea {

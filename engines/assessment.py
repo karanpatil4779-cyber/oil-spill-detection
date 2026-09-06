@@ -196,7 +196,67 @@ def summarize(result: Dict) -> Dict:
         return result
     result["detection_assessment"] = detection_assessment(result)
     result["transport_age_confidence"] = transport_confidence(result)
+    result["composite_confidence"] = composite_confidence(result)
     return result
+
+
+def composite_confidence(result: Dict) -> Dict:
+    """One traceable final number propagates the full uncertainty chain.
+
+    Components (each 0..1, only those that are actually available contribute):
+      * detection    - how likely the target is oil (detection_assessment)
+      * origin       - how well constrained the drift model is (transport
+                        particle/forecast retention)
+      * ais_match    - strength of the best AIS match (top suspect
+                        attribution score, else 0 if no AIS usable)
+
+    Returns a breakdown dict so the analyst can trace which part of the chain
+    contributed to the number, plus the product/weighted blend and a label.
+    """
+    components = {}
+
+    da = _d(result.get("detection_assessment"))
+    det_conf = da.get("confidence")
+    if isinstance(det_conf, (int, float)):
+        components["detection"] = round(float(det_conf), 3)
+
+    tc = transport_confidence(result)
+    if tc is not None:
+        components["origin"] = round(float(tc), 3)
+
+    suspects = result.get("suspects") or []
+    scores = [s.get("attribution_score") for s in suspects
+              if isinstance(s.get("attribution_score"), (int, float))]
+    if scores:
+        components["ais_match"] = round(float(max(scores)), 3)
+
+    if not components:
+        return {"score": None, "label": "Not assessable",
+                "components": {}, "basis": "no evidence available"}
+
+    # Geometric mean: a chain is only as strong as its weakest link, so one
+    # failed component drags the composite down rather than being averaged away.
+    prod = 1.0
+    for v in components.values():
+        prod *= max(float(v), 1e-6)
+    score = round(prod ** (1.0 / len(components)), 3)
+
+    if score >= 0.7:
+        label = "High confidence"
+    elif score >= 0.4:
+        label = "Moderate confidence"
+    elif score >= 0.1:
+        label = "Low confidence"
+    else:
+        label = "Very low confidence"
+
+    return {
+        "score": score,
+        "label": label,
+        "components": components,
+        "basis": ("geometric mean over {n} available evidence components: {keys}"
+                  .format(n=len(components), keys=", ".join(components))),
+    }
 
 
 def stored_confidence(result: Dict) -> Optional[float]:

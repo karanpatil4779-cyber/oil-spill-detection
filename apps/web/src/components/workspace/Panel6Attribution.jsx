@@ -44,10 +44,12 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
   };
 
   const factors = [
-    { key: "proximity", label: "Proximity Score", weight: "35%" },
-    { key: "duration", label: "Duration Match", weight: "20%" },
-    { key: "cargo", label: "Cargo/Type Match", weight: "30%" },
+    { key: "proximity", label: "Proximity Score", weight: "30%" },
+    { key: "duration", label: "Duration Match", weight: "18%" },
+    { key: "cargo", label: "Cargo/Type Match", weight: "22%" },
     { key: "behaviour", label: "Behavioural Anomaly", weight: "15%" },
+    { key: "vessel_type", label: "Vessel-Type Profile", weight: "10%" },
+    { key: "repeat", label: "Repeat-Offender History", weight: "5%" },
   ];
 
   const rankedSuspects = data.suspects.map((s, i) => ({ ...s, _index: i }));
@@ -63,7 +65,7 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
       <div className="panel-body">
         <div className="panel-card info-card">
           <p className="panel-note">
-            Ranked candidates with per-factor evidence breakdown.
+            Ranked candidates with per-factor evidence breakdown and stated reasons.
             Highest-ranked = <em>candidate source vessel</em>, not a definitive attribution.
             Manual review recommended.
           </p>
@@ -76,14 +78,19 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
 
         {suspects.map((s, i) => {
           const rank = s._index + 1;
-          const isTop = rank === 1 && (suspects[0]?.attribution_score || 0) > 0;
-          const label = isTop ? "Probable source vessel" : "Candidate source vessel";
+          const isTop = (s.top_signal || (rank === 1 && (suspects[0]?.attribution_score || 0) > 0));
+          const label = s.top_signal
+            ? "Probable source — SAR dark vessel (no AIS)"
+            : isTop
+              ? "Probable source vessel"
+              : "Candidate source vessel";
           return (
             <div className="panel-card attribution-card" key={s.vessel_id || s.mmsi || i}>
               <div className="attribution-header">
                 <span className="attribution-rank">#{rank}</span>
                 <div>
                   <span className="attribution-name">{s.vessel_name}</span>
+                  {s.top_signal && <span className="dark-vessel-badge" title="SAR dark spot with no co-located AIS track">DARK</span>}
                   <span className="attribution-meta">
                     MMSI: {s.mmsi} &middot; {s.ship_type} &middot; {s.flag}
                   </span>
@@ -109,6 +116,26 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
                   </div>
                 ))}
               </div>
+
+              {s.reasons && s.reasons.length > 0 && (
+                <div className="evidence-reasons">
+                  <span className="evidence-title">Evidence</span>
+                  <ul>
+                    {s.reasons.slice(0, 6).map((r, ri) => <li key={ri}>{r}</li>)}
+                  </ul>
+                </div>
+              )}
+
+              {(s.repeat_offense_count || 0) > 0 && (
+                <div className="repeat-offender panel-note">
+                  Repeat offender: previously implicated in{" "}
+                  <strong>{s.repeat_offense_count}</strong> attribution
+                  {s.repeat_offense_count !== 1 ? "s" : ""}
+                  {s.repeat_offense_incidents?.length
+                    ? ` (${s.repeat_offense_incidents.join(", ")})`
+                    : ""}
+                </div>
+              )}
 
               {s.signals && (
                 <div className="vessel-anomaly panel-note">
