@@ -67,6 +67,9 @@ def _now() -> datetime:
 
 def _is_transient(err: BaseException) -> bool:
     """True for retryable (network / 5xx / 429) errors; False otherwise."""
+    from engines.detection.sar_detector import SARDownloadBudgetExceeded
+    if isinstance(err, SARDownloadBudgetExceeded):
+        return False
     import requests
     if isinstance(err, (requests.exceptions.RequestException, TimeoutError, ConnectionError, OSError)):
         return True

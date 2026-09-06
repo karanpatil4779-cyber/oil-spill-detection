@@ -42,10 +42,20 @@ CDSE_AUTH = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/
 # Hard wall-clock budget for a single product download. A 1.7 GB GRD scene on a
 # constrained/pace-limited connection can stall for hours if given no bound; a
 # budget fails the stage with a clear reason instead of blocking the run.
-SAR_DOWNLOAD_TIMEOUT_SECONDS = int(os.getenv("SAR_DOWNLOAD_TIMEOUT_SECONDS", "1500"))
+SAR_DOWNLOAD_TIMEOUT_SECONDS = int(os.getenv("SAR_DOWNLOAD_TIMEOUT_SECONDS", "600"))
 
 
 class SARAuthError(Exception):
+    pass
+
+class SARDownloadBudgetExceeded(Exception):
+    """Raised when a product download exceeds its wall-clock budget.
+
+    Distinct from ``TimeoutError`` so the job-runner classifies it as
+    **non-retryable**: retrying the same large download just burns time.
+    The pipeline stage is marked failed with a clear reason and the run
+    continues.
+    """
     pass
 
 
@@ -285,10 +295,10 @@ class SARDetector:
                             dl_started = time.time()
                         elif time.time() - dl_started > SAR_DOWNLOAD_TIMEOUT_SECONDS:
                             resp.close()
-                            raise TimeoutError(
+                            raise SARDownloadBudgetExceeded(
                                 f"SAR product download exceeded {SAR_DOWNLOAD_TIMEOUT_SECONDS}s budget "
                                 f"({downloaded / 1e6:.0f} MB of {total / 1e6:.0f} MB); "
-                                "use a faster/mirrored CDSE endpoint or larger instance"
+                                "use a larger instance or retry when network is faster"
                             )
                         f.write(chunk)
                         downloaded += len(chunk)
@@ -298,21 +308,32 @@ class SARDetector:
             else:
                 zip_path = cached_zip
 
-        # Extract. Sentinel-1 .SAFE products have very long file/folder names
-        # that exceed the Windows MAX_PATH limit when nested under a deep output
-        # dir. To stay portable we shorten the top-level .SAFE folder of every
-        # member to a short id-based name before writing it out.
+        # Extract. Sentinel-1 .SAFE zips contain ~94k files (annotations, previews,
+        # metadata). The detector only needs the measurement GeoTIFFs and a
+        # manifest.safe for cache validation. Extracting everything would take
+        # over an hour on the free tier — we grab only what's needed.
         short_name = f"s1_{product_id[:8]}"
         with zipfile.ZipFile(zip_path, "r") as zf:
-            members = zf.namelist()
-            # First original top-level folder (e.g. S1A_...SAFE) length
+            all_members = zf.namelist()
+            # Find the top-level .SAFE folder to shorten paths (same as before).
             prefix = ""
-            for m in members:
+            for m in all_members:
                 head = m.split("/", 1)[0]
                 if head:
                     prefix = head
                     break
-            for m in members:
+            # Only extract GeoTIFFs + manifest.safe (detector reads rglob("*.tif"))
+            need_ext = {".tif", ".tiff"}
+            selected = [
+                m for m in all_members
+                if m.lower().endswith(("manifest.safe",)) or Path(m).suffix.lower() in need_ext
+            ]
+            # Fallback: if the zip structure is unusual and we found nothing,
+            # extract everything rather than silently produce an empty result.
+            if not selected:
+                logger.warning("SAR: no TIFFs or manifest.safe found; extracting all members")
+                selected = all_members
+            for m in selected:
                 rel = m
                 if prefix and m.startswith(prefix):
                     rel = short_name + m[len(prefix):]
@@ -324,7 +345,7 @@ class SARDetector:
                 with zf.open(m) as fi, open(target, "wb") as fo:
                     fo.write(fi.read())
         extracted_dir = output_dir / short_name
-        logger.info(f"Extracted {len(members)} members -> {extracted_dir}")
+        logger.info(f"Extracted {len(selected)}/{len(all_members)} members -> {extracted_dir}")
         return extracted_dir
 
     # ── Oil detection ────────────────────────────────────────────────────
