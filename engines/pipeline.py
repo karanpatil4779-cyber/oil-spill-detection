@@ -411,10 +411,13 @@ def run_pipeline(
     out.suspects, out.gfw_available, ais_warnings = _run_ais(origin, detection_time, duration_hours)
     out.warnings += ais_warnings
 
-    # Stage 6: Attribution
+    # Stage 6: Attribution — present only the top-ranked candidates so the
+    # workspace shows the most probable source vessels rather than every AIS
+    # contact in the search box.
+    TOP_SUSPECTS = 5
     if out.suspects:
         _progress("attribution", 92.0)
-        out.suspects = _run_attribution(out.suspects, origin["centroid"])
+        out.suspects = _run_attribution(out.suspects, origin["centroid"])[:TOP_SUSPECTS]
 
     _progress("attribution", 100.0)
     return out

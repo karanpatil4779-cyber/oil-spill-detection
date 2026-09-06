@@ -115,6 +115,33 @@ export default function Workspace() {
     }
   };
 
+  const handleRerun = async (stage, params) => {
+    try {
+      await apiPost(`/cases/${caseId}/rerun`, { stage, params: params || {} });
+      loadCase();
+    } catch (err) {
+      alert(`Re-run failed: ${err.message}`);
+    }
+  };
+
+  const handleInsufficientEvidence = async () => {
+    try {
+      await apiPatch(`/cases/${caseId}/status`, { status: "insufficient_evidence" });
+      loadCase();
+    } catch (err) {
+      alert("Failed to close as insufficient evidence: " + err.message);
+    }
+  };
+
+  const handleFalsePositive = async () => {
+    try {
+      await apiPatch(`/cases/${caseId}/status`, { status: "closed" });
+      loadCase();
+    } catch (err) {
+      alert("Failed to mark as false positive: " + err.message);
+    }
+  };
+
   if (loading) return <div className="loading">Loading case workspace...</div>;
   if (!caseData) return <div className="error">Case not found</div>;
 
@@ -218,13 +245,13 @@ export default function Workspace() {
       {/* Results panels — only render after pipeline succeeded */}
       {hasData && (
         <div className="workspace-panels">
-          <Panel1Detection data={result} readOnly={!isEditable} />
-          <Panel2Characterization data={result} readOnly={!isEditable} />
-          <Panel3OriginHindcast data={result} readOnly={!isEditable} />
+          <Panel1Detection data={result} readOnly={!isEditable} onFalsePositive={handleFalsePositive} />
+          <Panel2Characterization data={result} readOnly={!isEditable} onResegment={() => handleRerun("characterization")} />
+          <Panel3OriginHindcast data={result} readOnly={!isEditable} onChangeSource={(src) => handleRerun("origin", { source: src })} onRerun={() => handleRerun("origin")} />
           <Panel4ForwardForecast data={result} readOnly={!isEditable} />
-          <Panel5AISVessels data={result} readOnly={!isEditable} />
+          <Panel5AISVessels data={result} readOnly={!isEditable} onFilterChange={(f) => handleRerun("ais", { radius: f.radius, time_buffer: f.timeBuffer })} />
           <Panel6Attribution data={result} readOnly={!isEditable} onOverrideRank={handleOverrideRank} />
-          <Panel7DataQuality data={result} readOnly={!isEditable} />
+          <Panel7DataQuality data={result} readOnly={!isEditable} onInsufficientEvidence={handleInsufficientEvidence} />
           <Panel8AuditTrail auditLog={auditLog} />
         </div>
       )}

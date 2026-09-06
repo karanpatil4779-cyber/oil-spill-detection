@@ -14,3 +14,5 @@ server.pid
 _deltest.txt
 .pytest_cache/
 .DS_Store
+
+token.json

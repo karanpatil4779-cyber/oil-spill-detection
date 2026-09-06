@@ -29,8 +29,13 @@ export async function api(path, options = {}) {
     throw new Error("Unauthorized");
   }
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || `API error ${res.status}`);
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    data = {};
+  }
+  if (!res.ok) throw new Error(data.detail || `API error ${res.status} ${res.statusText}`.trim());
   return data;
 }
 

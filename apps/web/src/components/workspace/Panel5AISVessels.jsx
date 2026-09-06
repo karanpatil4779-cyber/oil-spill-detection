@@ -8,7 +8,8 @@ export default function Panel5AISVessels({ data, readOnly, onFilterChange, onRer
 
   if (!data) return <div className="panel-empty">AIS vessel data not available</div>;
 
-  const suspects = data.suspects || [];
+  const suspects = (data.suspects || []).slice(0, 5);
+  const totalSuspects = (data.suspects || []).length;
   const gfwAvailable = data.gfw_available;
   const hasFilterStats = data.ais_filter_stats;
   const totalInRegion = hasFilterStats ? data.ais_filter_stats.total_in_region : null;
@@ -47,7 +48,12 @@ export default function Panel5AISVessels({ data, readOnly, onFilterChange, onRer
             </div>
           ) : (
             <div className="reduction-ratio">
-              <span className="reduction-to">{afterFilter} candidate vessel(s) identified</span>
+              <span className="reduction-to">{afterFilter} top candidate vessel(s) identified</span>
+            </div>
+          )}
+          {totalSuspects > suspects.length && (
+            <div className="panel-note">
+              Showing top {suspects.length} of {totalSuspects} candidate vessels by attribution rank.
             </div>
           )}
           {hasFilterStats && (

@@ -35,7 +35,7 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
     if (justification.trim()) {
       onOverrideRank?.({
         vessel_id: overrideVessel.mmsi || overrideVessel.vessel_id,
-        new_rank: data.suspects.indexOf(overrideVessel) + 1,
+        new_rank: (overrideVessel._index ?? data.suspects.indexOf(overrideVessel)) + 1,
         justification: justification.trim(),
       });
       setOverrideVessel(null);
@@ -50,7 +50,9 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
     { key: "behaviour", label: "Behavioural Anomaly", weight: "15%" },
   ];
 
-  const topScore = data.suspects[0]?.attribution_score || 0;
+  const rankedSuspects = data.suspects.map((s, i) => ({ ...s, _index: i }));
+  const suspects = rankedSuspects.slice(0, 5);
+  const totalSuspects = rankedSuspects.length;
 
   return (
     <div className="workspace-panel">
@@ -65,15 +67,21 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
             Highest-ranked = <em>candidate source vessel</em>, not a definitive attribution.
             Manual review recommended.
           </p>
+          {totalSuspects > suspects.length && (
+            <p className="panel-note">
+              Showing top {suspects.length} of {totalSuspects} ranked vessels by attribution score.
+            </p>
+          )}
         </div>
 
-        {data.suspects.map((s, i) => {
-          const isTop = i === 0 && topScore > 0;
+        {suspects.map((s, i) => {
+          const rank = s._index + 1;
+          const isTop = rank === 1 && (suspects[0]?.attribution_score || 0) > 0;
           const label = isTop ? "Probable source vessel" : "Candidate source vessel";
           return (
             <div className="panel-card attribution-card" key={s.vessel_id || s.mmsi || i}>
               <div className="attribution-header">
-                <span className="attribution-rank">#{i + 1}</span>
+                <span className="attribution-rank">#{rank}</span>
                 <div>
                   <span className="attribution-name">{s.vessel_name}</span>
                   <span className="attribution-meta">
@@ -121,7 +129,7 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
         {overrideVessel && (
           <div className="panel-card override-dialog">
             <h4>Manual Rank Override</h4>
-            <p>Vessel: <strong>{overrideVessel.vessel_name}</strong> (#{data.suspects.indexOf(overrideVessel) + 1})</p>
+            <p>Vessel: <strong>{overrideVessel.vessel_name}</strong> (#{(overrideVessel._index ?? data.suspects.indexOf(overrideVessel)) + 1})</p>
             <textarea
               value={justification}
               onChange={(e) => setJustification(e.target.value)}
