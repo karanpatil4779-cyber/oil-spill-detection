@@ -138,7 +138,11 @@ class AttributionRanker:
         elif cargo_score <= 0.1:
             reasons.append(f"low-cargo-relevance type ({vt})")
         if behaviour_score >= 0.6:
-            reasons.append(f"strong behavioural anomaly ({suspect.get('evidence', 'signal')})")
+            ev = suspect.get("evidence") or "signal"
+            if ev.lower().startswith("strong behavioural anomaly"):
+                reasons.append(ev)
+            else:
+                reasons.append(f"strong behavioural anomaly ({ev})")
         elif behaviour_score >= 0.3:
             reasons.append("moderate behavioural anomaly (partial linger near origin)")
         else:
