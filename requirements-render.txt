@@ -5,6 +5,8 @@ psycopg2-binary
 numpy
 pandas
 xarray
+netcdf4
+scipy
 rasterio
 requests
 python-dotenv
