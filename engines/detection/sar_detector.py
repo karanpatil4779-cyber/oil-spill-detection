@@ -20,6 +20,7 @@ Limitations:
 """
 
 import os
+import time
 import logging
 import tempfile
 import zipfile
@@ -37,6 +38,11 @@ logger = logging.getLogger(__name__)
 CDSE_BASE = "https://catalogue.dataspace.copernicus.eu/odata/v1"
 CDSE_DOWNLOAD = "https://zipper.dataspace.copernicus.eu/odata/v1"
 CDSE_AUTH = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+
+# Hard wall-clock budget for a single product download. A 1.7 GB GRD scene on a
+# constrained/pace-limited connection can stall for hours if given no bound; a
+# budget fails the stage with a clear reason instead of blocking the run.
+SAR_DOWNLOAD_TIMEOUT_SECONDS = int(os.getenv("SAR_DOWNLOAD_TIMEOUT_SECONDS", "1500"))
 
 
 class SARAuthError(Exception):
@@ -270,10 +276,20 @@ class SARDetector:
                 zip_path = output_dir / f"{product_id}.zip"
                 total = int(resp.headers.get("Content-Length", 0))
                 downloaded = 0
+                dl_started = None
                 with open(zip_path, "wb") as f:
                     for chunk in resp.iter_content(8192):
                         if not chunk:
                             continue
+                        if dl_started is None:
+                            dl_started = time.time()
+                        elif time.time() - dl_started > SAR_DOWNLOAD_TIMEOUT_SECONDS:
+                            resp.close()
+                            raise TimeoutError(
+                                f"SAR product download exceeded {SAR_DOWNLOAD_TIMEOUT_SECONDS}s budget "
+                                f"({downloaded / 1e6:.0f} MB of {total / 1e6:.0f} MB); "
+                                "use a faster/mirrored CDSE endpoint or larger instance"
+                            )
                         f.write(chunk)
                         downloaded += len(chunk)
                 resp.close()
