@@ -2,9 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Runtime libs needed by numpy / rasterio wheels (manylinux wheels bundle GDAL/GEOS/PROJ).
+# Runtime libs needed by numpy / rasterio wheels (manylinux wheels bundle
+# GDAL/GEOS/PROJ). libexpat1 is required by rasterio/GDAL when parsing the
+# SAFE product XML of Sentinel-2 scenes.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
+    libexpat1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Lean runtime deps (torch/torchvision/cdsapi/copernicusmarine are training/download-only and are NOT installed).

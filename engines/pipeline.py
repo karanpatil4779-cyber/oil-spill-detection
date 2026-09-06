@@ -98,11 +98,31 @@ def _run_detection(lon, lat, date, band="VV", max_products=1):
         # The catalogue query returned without raising, so the provider is up.
         out["provider_reachable"] = True
         if not products:
+            # A 12-day revisit orbit can easily miss the exact incident day.
+            # Widen to a ~7-day window (operationally: the slick may be
+            # imaged up to a few days before/after the reported sighting).
+            from datetime import datetime as _dt, timedelta as _td
+            try:
+                day = _dt.strptime(date, "%Y-%m-%d")
+                products = det.search_near_date_range(
+                    lon, lat,
+                    (day - _td(days=3)).strftime("%Y-%m-%d"),
+                    (day + _td(days=3)).strftime("%Y-%m-%d"),
+                    product_type="GRD", limit=max_products,
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"SAR: widened search failed: {e}")
+        if not products:
             out["warnings"].append(
                 "SAR: provider reachable but no Sentinel-1 product covers this date/location"
             )
             return out
         product = products[0]
+        scene_date = (product.get("start") or "")[:10] or date
+        out["warnings"].append(
+            f"SAR: using Sentinel-1 scene {product['name']} acquired {scene_date} "
+            f"(searched past {scene_date} for the incident of {date})"
+        )
         logger.info(f"SAR: downloading {product['name']}")
         dl_dir = det.download_product(product["id"])
         detections = det.detect_from_product(str(dl_dir), band=band)
