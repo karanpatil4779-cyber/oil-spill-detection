@@ -71,10 +71,12 @@ def main():
                 print(f"  {c.id}: {c.case_number} | {c.location_name}")
             sys.exit(1)
 
-        result = case.pipeline_result or {}
+        result = dict(case.pipeline_result or {})
         result["characterization"] = CHARACTERIZATION
         result["age"] = AGE
         case.pipeline_result = result
+        from sqlalchemy.orm.attributes import flag_modified
+        flag_modified(case, "pipeline_result")
         db.commit()
         print(f"Patched {case.case_number} (id={case.id}) with characterization + age.")
         print(f"  age: {AGE['age_hours']}h [{AGE['age_min_hours']}-{AGE['age_max_hours']}] confidence={AGE['confidence']}")

@@ -14,6 +14,9 @@ unavailable (e.g. GFW key invalid, SAR product missing, pre-2017 incident).
 """
 
 import logging
+import math
+import os
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -81,16 +84,72 @@ def resolve_metocean_file(incident_id: Optional[str]) -> str:
     return str(PROJECT_ROOT / "data/processed/metocean/mt_jipro_neftis/final_metocean.nc")
 
 
-def _run_detection(lon, lat, date, band="VV", max_products=1):
+def _synthesize_detection(lon, lat, estimated_km2=4.0):
+    """Build a single coordinate-anchored detection used as a fallback when no
+    SAR imagery can be obtained (e.g. free-tier bandwidth limits, pre-2014
+    incidents, provider outage). It is explicitly marked heuristic so the UI
+    and downstream stages know it did not come from real SAR backscatter.
+    """
+    # Rough ~0.045 deg per km at these latitudes (lon scaling handled crudely,
+    # acceptable for a 4 km2 demo slick).
+    half_km = math.sqrt(estimated_km2) / 2.0
+    dlon = half_km / 100.0
+    dlat = half_km / 100.0
+    return {
+        "bbox_px": [0, 0, 200, 60],
+        "area_px": 12000,
+        "centroid_geo": [float(lon), float(lat)],
+        "bbox_geo": [lon - dlon, lat - dlat, lon + dlon, lat + dlat],
+        "mean_db": -12.0,   # plausible fresh-slick dark-spot contrast
+        "is_heuristic": True,
+        "source": "operator-coordinates fallback (no SAR imagery available)",
+    }
+
+
+def _run_detection(lon, lat, date, band="VV", max_products=1, budget_seconds=0):
     """Stage 1: optional SAR detection.
 
     ``available`` is set only once the provider has actually returned imagery
     we could run the detector over. Constructing ``SARDetector`` proves nothing
     about connectivity, so setting the flag there made a failed download
     indistinguishable from a clean scene.
+
+    ``budget_seconds`` bounds the whole attempt with a wall-clock budget
+    (default 0 = unbounded). On constrained hosts (Render free tier) a single
+    GRD download can take many minutes or never finish; the budget lets the
+    stage fail fast with a clear reason instead of blocking the run.
     """
     out = {"detections": [], "available": False, "provider_reachable": False,
            "scenes_used": 0, "warnings": []}
+
+    if budget_seconds <= 0:
+        return _run_detection_inner(lon, lat, date, band, max_products, out)
+
+    # Run the real SAR attempt in a daemon thread under a wall-clock budget.
+    box = {}
+    def _worker():
+        try:
+            box["out"] = _run_detection_inner(lon, lat, date, band, max_products, dict(out))
+        except BaseException as e:  # noqa: BLE001
+            box["err"] = e
+
+    th = threading.Thread(target=_worker, daemon=True)
+    th.start()
+    th.join(timeout=budget_seconds)
+    if th.is_alive():
+        out["warnings"].append(
+            f"SAR detection exceeded the {budget_seconds}s wall-clock budget and was "
+            "abandoned (large download on a constrained host). Falling back to "
+            "coordinated detection from the reported incident position."
+        )
+        return out
+    if "err" in box:
+        out["warnings"].append(f"SAR detection FAILED: {type(box['err']).__name__}: {box['err']}")
+        return out
+    return box.get("out", out)
+
+
+def _run_detection_inner(lon, lat, date, band, max_products, out):
     try:
         from engines.detection.sar_detector import SARDetector
         det = SARDetector()
@@ -390,11 +449,29 @@ def run_pipeline(
         out.sar_requested = True
         sar_date = sar_date or detection_time[:10]
         _progress("detection", 5.0)
-        det_res = _run_detection(lon, lat, sar_date)
+        # Wall-clock budget for the SAR attempt. On thin hosts (free tier) a
+        # multi-GB GRD download can hang for many minutes; bound it and fall
+        # back to a coordinate-anchored heuristic so the run completes.
+        sar_budget = int(os.getenv("SAR_DETECTION_BUDGET_SECONDS", "45"))
+        det_res = _run_detection(lon, lat, sar_date, budget_seconds=sar_budget)
         out.sar_available = det_res["available"]
         out.sar_scenes_used = det_res["scenes_used"]
         out.warnings += det_res["warnings"]
         out.detections = det_res["detections"]
+
+        # Heuristic fallback: if SAR imagery could not be obtained (budget
+        # exceeded, provider unreachable, no scene, detector found nothing),
+        # synthesize a clearly-labelled detection anchored at the operator's
+        # coordinates. This keeps characterization/age/origin/forecast/attribution
+        # flowing end-to-end on constrained hosts while the DEMO/HEURISTIC flag
+        # tells the UI these values are not from real imagery.
+        if not out.detections:
+            out.detections = [_synthesize_detection(lon, lat)]
+            out.warnings.append(
+                "No real SAR detections were available; a HEURISTIC detection was "
+                "synthesised at the reported incident coordinates for demonstration. "
+                "Its area/volume/age are estimates, not observations."
+            )
 
         # Look-alike screening: rule out biogenic slicks / low-wind zones / other
         # false positives BEFORE attribution starts (Feature 2). Uses the real
@@ -407,7 +484,7 @@ def run_pipeline(
             try:
                 mean_wind = extract_mean_wind(
                     resolve_metocean_file(incident_id), lon, lat,
-                    detection_time, window_hours)
+                    detection_time, duration_hours)
             except Exception as e:  # noqa: BLE001
                 logger.warning(f"Look-alike wind gate skipped: {e}")
             filtered = screen_lookalikes(out.detections, mean_wind_ms=mean_wind)
