@@ -26,6 +26,6 @@ services:
       - key: DEBUG
         value: "False"
       - key: CORS_ORIGINS
-        value: https://web-eight-ochre-60.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+        value: https://web-eight-ochre-60.vercel.app,https://oilspillai.vercel.app,http://localhost:5173,http://127.0.0.1:5173
       - key: SEED_DEMO_DATA
         value: "true"
