@@ -1,8 +1,14 @@
 import React, { useState } from "react";
+import VesselDetailModal from "./VesselDetailModal";
+
+const INITIAL_COUNT = 5;
 
 export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
   const [overrideVessel, setOverrideVessel] = useState(null);
   const [justification, setJustification] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const [selectedVessel, setSelectedVessel] = useState(null);
+  const [selectedRank, setSelectedRank] = useState(0);
 
   if (!data?.suspects || data.suspects.length === 0) {
     return (
@@ -26,7 +32,8 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
     );
   }
 
-  const handleOverride = (vessel) => {
+  const handleOverride = (e, vessel) => {
+    e.stopPropagation();
     setOverrideVessel(vessel);
     setJustification("");
   };
@@ -43,17 +50,13 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
     }
   };
 
-  const factors = [
-    { key: "proximity", label: "Proximity Score", weight: "30%" },
-    { key: "duration", label: "Duration Match", weight: "18%" },
-    { key: "cargo", label: "Cargo/Type Match", weight: "22%" },
-    { key: "behaviour", label: "Behavioural Anomaly", weight: "15%" },
-    { key: "vessel_type", label: "Vessel-Type Profile", weight: "10%" },
-    { key: "repeat", label: "Repeat-Offender History", weight: "5%" },
-  ];
+  const handleVesselClick = (vessel, index) => {
+    setSelectedVessel(vessel);
+    setSelectedRank(index + 1);
+  };
 
   const rankedSuspects = data.suspects.map((s, i) => ({ ...s, _index: i }));
-  const suspects = rankedSuspects.slice(0, 5);
+  const suspects = showAll ? rankedSuspects : rankedSuspects.slice(0, INITIAL_COUNT);
   const totalSuspects = rankedSuspects.length;
 
   return (
@@ -69,9 +72,9 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
             Highest-ranked = <em>candidate source vessel</em>, not a definitive attribution.
             Manual review recommended.
           </p>
-          {totalSuspects > suspects.length && (
+          {totalSuspects > INITIAL_COUNT && (
             <p className="panel-note">
-              Showing top {suspects.length} of {totalSuspects} ranked vessels by attribution score.
+              Showing {showAll ? "all" : `top ${INITIAL_COUNT}`} of {totalSuspects} ranked vessels by attribution score. Click any vessel for full evidence.
             </p>
           )}
         </div>
@@ -80,12 +83,16 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
           const rank = s._index + 1;
           const isTop = (s.top_signal || (rank === 1 && (suspects[0]?.attribution_score || 0) > 0));
           const label = s.top_signal
-            ? "Probable source — SAR dark vessel (no AIS)"
+            ? "Probable source \u2014 SAR dark vessel (no AIS)"
             : isTop
               ? "Probable source vessel"
               : "Candidate source vessel";
           return (
-            <div className="panel-card attribution-card" key={s.vessel_id || s.mmsi || i}>
+            <div
+              className="panel-card attribution-card vessel-clickable"
+              key={s.vessel_id || s.mmsi || i}
+              onClick={() => handleVesselClick(s, rank)}
+            >
               <div className="attribution-header">
                 <span className="attribution-rank">#{rank}</span>
                 <div>
@@ -100,7 +107,14 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
               </div>
 
               <div className="factor-breakdown">
-                {factors.map((f) => (
+                {[
+                  { key: "proximity", label: "Proximity Score", weight: "30%" },
+                  { key: "duration", label: "Duration Match", weight: "18%" },
+                  { key: "cargo", label: "Cargo/Type Match", weight: "22%" },
+                  { key: "behaviour", label: "Behavioural Anomaly", weight: "15%" },
+                  { key: "vessel_type", label: "Vessel-Type Profile", weight: "10%" },
+                  { key: "repeat", label: "Repeat-Offender History", weight: "5%" },
+                ].map((f) => (
                   <div className="factor-row" key={f.key}>
                     <span className="factor-label">{f.label}</span>
                     <div className="factor-bar-bg">
@@ -110,7 +124,7 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
                       />
                     </div>
                     <span className="factor-weight">
-                      {s.factors?.[f.key] != null ? (s.factors[f.key] * 100).toFixed(0) + "%" : "—"}
+                      {s.factors?.[f.key] != null ? (s.factors[f.key] * 100).toFixed(0) + "%" : "\u2014"}
                       <span className="factor-config"> (config: {f.weight})</span>
                     </span>
                   </div>
@@ -121,7 +135,8 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
                 <div className="evidence-reasons">
                   <span className="evidence-title">Evidence</span>
                   <ul>
-                    {s.reasons.slice(0, 6).map((r, ri) => <li key={ri}>{r}</li>)}
+                    {s.reasons.slice(0, 4).map((r, ri) => <li key={ri}>{r}</li>)}
+                    {s.reasons.length > 4 && <li className="panel-note">+{s.reasons.length - 4} more reasons (click for full details)</li>}
                   </ul>
                 </div>
               )}
@@ -144,14 +159,30 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
                 </div>
               )}
 
-              {!readOnly && (
-                <button className="btn-sm btn-outline" onClick={() => handleOverride(s)}>
-                  Override Rank
-                </button>
-              )}
+              <div className="vessel-click-hint">
+                <span>Click for full details &amp; interactive map &rarr;</span>
+                {!readOnly && (
+                  <button className="btn-sm btn-outline" onClick={(e) => handleOverride(e, s)}>
+                    Override Rank
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
+
+        {totalSuspects > INITIAL_COUNT && (
+          <div className="show-more-container">
+            <button className="btn-secondary btn-show-more" onClick={() => setShowAll(!showAll)}>
+              {showAll ? "Show Less" : `Show All ${totalSuspects} Ranked Vessels`}
+            </button>
+            {!showAll && (
+              <span className="show-more-hint">
+                Showing {INITIAL_COUNT} of {totalSuspects} vessels
+              </span>
+            )}
+          </div>
+        )}
 
         {overrideVessel && (
           <div className="panel-card override-dialog">
@@ -170,6 +201,15 @@ export default function Panel6Attribution({ data, readOnly, onOverrideRank }) {
               </button>
             </div>
           </div>
+        )}
+
+        {selectedVessel && (
+          <VesselDetailModal
+            vessel={selectedVessel}
+            pipelineData={data}
+            rank={selectedRank}
+            onClose={() => setSelectedVessel(null)}
+          />
         )}
       </div>
     </div>
