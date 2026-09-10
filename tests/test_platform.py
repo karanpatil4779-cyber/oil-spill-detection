@@ -464,6 +464,39 @@ class TestAsyncJobRunner:
         assert resp.status_code == 200
         assert resp.json()["run_id"] == run_id
 
+    def test_rerun_all_queues_runs_for_cases(self, client, analyst_token):
+        ids = []
+        for _ in range(2):
+            create = client.post("/cases", json={
+                "lon": 72.8, "lat": 18.9, "detection_date": "2024-01-01",
+            }, headers=auth_header(analyst_token))
+            ids.append(create.json()["id"])
+        resp = client.post("/cases/rerun-all",
+                           json={"run_sar": True},
+                           headers=auth_header(analyst_token))
+        assert resp.status_code == 200
+        data = resp.json()
+        queued_ids = {r["case_id"] for r in data["queued"]}
+        assert set(ids) <= queued_ids
+        assert data["run_sar"] is True
+
+    def test_rerun_all_skips_cases_with_active_run(self, client, analyst_token):
+        create = client.post("/cases", json={
+            "lon": 72.8, "lat": 18.9, "detection_date": "2024-01-01",
+        }, headers=auth_header(analyst_token))
+        case_id = create.json()["id"]
+        client.post(f"/cases/{case_id}/runs",
+                    json={"run_sar": False},
+                    headers=auth_header(analyst_token))
+        resp = client.post("/cases/rerun-all",
+                           json={"run_sar": True},
+                           headers=auth_header(analyst_token))
+        assert resp.status_code == 200
+        data = resp.json()
+        skipped_ids = {s["case_id"] for s in data["skipped"]}
+        assert case_id in skipped_ids
+        assert case_id not in {r["case_id"] for r in data["queued"]}
+
 
 class TestAuditLog:
     def test_case_audit_log_records_creation(self, client, analyst_token):

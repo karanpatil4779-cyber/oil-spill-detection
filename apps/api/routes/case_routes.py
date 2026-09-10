@@ -76,6 +76,11 @@ class RunCreateRequest(BaseModel):
     sar_date: Optional[str] = None
 
 
+class RunAllRequest(BaseModel):
+    run_sar: bool = True
+    sar_date: Optional[str] = None
+
+
 class RunResponse(BaseModel):
     run_id: str
     case_id: int
@@ -127,6 +132,65 @@ def _to_run_response(run) -> RunResponse:
 # ---------------------------------------------------------------------------
 # Async pipeline-run routes (Milestone 1)
 # ---------------------------------------------------------------------------
+
+@router.post("/rerun-all")
+def rerun_all_cases(
+    req: RunAllRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("analyst")),
+):
+    """Enqueue an asynchronous pipeline run for every case owned by the analyst.
+
+    Cases that already have an active (queued/running) run are skipped. Returns
+    the queued run ids plus the skipped cases and the reason for skipping.
+    """
+    from apps.jobs.runner import enqueue_run
+
+    cases = (
+        db.query(Case)
+        .filter(Case.analyst_id == current_user.id)
+        .order_by(Case.id)
+        .all()
+    )
+    queued = []
+    skipped = []
+    for case in cases:
+        active = db.query(Run).filter(
+            Run.case_id == case.id,
+            Run.status.in_(["queued", "running"]),
+        ).first()
+        if active:
+            skipped.append({
+                "case_id": case.id,
+                "case_number": case.case_number,
+                "reason": f"run already active: {active.run_id}",
+            })
+            continue
+        config = {
+            "lon": case.lon,
+            "lat": case.lat,
+            "detection_date": case.detection_date,
+            "duration_hours": case.duration_hours or 48,
+            "incident_id": case.case_number,
+            "run_sar": req.run_sar,
+            "sar_date": req.sar_date,
+        }
+        run_id = enqueue_run(case.id, current_user.id, config)
+        _log_audit(db, case.id, current_user.id, "pipeline_run",
+                   {"run_id": run_id, "triggered": "rerun_all"})
+        queued.append({
+            "case_id": case.id,
+            "case_number": case.case_number,
+            "run_id": run_id,
+        })
+    db.commit()
+    return {
+        "total": len(cases),
+        "queued": queued,
+        "skipped": skipped,
+        "run_sar": req.run_sar,
+    }
+
 
 @router.post("/{case_id}/runs", response_model=RunResponse, status_code=202)
 def create_case_run(
