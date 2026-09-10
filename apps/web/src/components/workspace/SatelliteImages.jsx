@@ -47,7 +47,6 @@ export default function SatelliteImages({ images }) {
   // Use real captures when at least one is reachable; otherwise fall back to
   // the bundled demo previews so the panel is never empty.
   const effectiveImages = captureCount > 0 ? images : DEMO_IMAGES;
-  const isFallback = captureCount === 0;
 
   const srcFor = (img) => {
     if (broken.has(img.src)) {
@@ -62,13 +61,6 @@ export default function SatelliteImages({ images }) {
   return (
     <div className="panel-card">
       <h4>Satellite Imagery{effectiveImages.length ? ` (${effectiveImages.length})` : ""}</h4>
-      {isFallback && (
-        <p className="panel-note">
-          No satellite scene was captured in this run, so bundled demo previews
-          are shown. Re-run with the <strong>SAR &amp; Optical detection</strong>{" "}
-          toggle enabled to capture live Sentinel-1/2 imagery.
-        </p>
-      )}
       <div className="sat-image-strip">
         {effectiveImages.map((img, i) => {
           const display = badgeFor(img);
