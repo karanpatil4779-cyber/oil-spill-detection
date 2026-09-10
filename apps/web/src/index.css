@@ -96,6 +96,8 @@ body { background: #0b1120; color: #e2e8f0; }
   padding: 10px 16px; margin-bottom: 18px; border-radius: 8px;
   background: #0f172a; border: 1px solid #334155; color: #e2e8f0; font-size: 13px;
 }
+.case-row-actions { display: flex; align-items: center; gap: 8px; }
+.case-row-status { font-size: 11px; color: #94a3b8; max-width: 140px; }
 
 /* ---- Buttons ---- */
 .btn-primary {

@@ -81,6 +81,7 @@ export default function AnalystDashboard() {
           basePath="/analyst/case"
           statusFilter={statusFilter}
           onStatusFilter={setStatusFilter}
+          showRerun
         />
       )}
     </div>
