@@ -31,8 +31,16 @@ const DEMO_IMAGES = [
 const REACHABLE = (url) =>
   /^(https?:|data:|blob:)/.test(url || "") || url.startsWith("/satellite-demo/");
 
+const DEMO_FOR_TYPE = {
+  sar: DEMO_IMAGES[0],
+  optical: DEMO_IMAGES[1],
+  ndhi: DEMO_IMAGES[1],
+};
+
 export default function SatelliteImages({ images }) {
   const [expanded, setExpanded] = useState(null);
+  // srcs that failed to load (broken/404/unauthorised) -> substitute demo render
+  const [broken, setBroken] = useState(() => new Set());
 
   const captureCount = (images || []).filter((img) => REACHABLE(img.src)).length;
 
@@ -40,6 +48,16 @@ export default function SatelliteImages({ images }) {
   // the bundled demo previews so the panel is never empty.
   const effectiveImages = captureCount > 0 ? images : DEMO_IMAGES;
   const isFallback = captureCount === 0;
+
+  const srcFor = (img) => {
+    if (broken.has(img.src)) {
+      return (DEMO_FOR_TYPE[img.type] || DEMO_IMAGES[0]).src;
+    }
+    return img.src;
+  };
+
+  const badgeFor = (img) =>
+    broken.has(img.src) ? (DEMO_FOR_TYPE[img.type] || DEMO_IMAGES[0]) : img;
 
   return (
     <div className="panel-card">
@@ -53,7 +71,8 @@ export default function SatelliteImages({ images }) {
       )}
       <div className="sat-image-strip">
         {effectiveImages.map((img, i) => {
-          const meta = TYPE_META[img.type] || TYPE_META.sar;
+          const display = badgeFor(img);
+          const meta = TYPE_META[display.type] || TYPE_META.sar;
           return (
             <div
               className={`sat-image-item ${expanded === i ? "expanded" : ""}`}
@@ -61,25 +80,28 @@ export default function SatelliteImages({ images }) {
               onClick={() => setExpanded(expanded === i ? null : i)}
             >
               <img
-                src={img.src}
-                alt={img.caption || `Satellite image ${i + 1}`}
+                src={srcFor(img)}
+                alt={display.caption || `Satellite image ${i + 1}`}
                 loading="lazy"
                 className="sat-image-thumb"
+                onError={() => setBroken((prev) => new Set(prev).add(img.src))}
               />
               <div className="sat-image-meta">
                 <span className="sat-image-badge" style={{ background: `${meta.color}22`, color: meta.color }}>
                   {meta.icon} {meta.label}
                 </span>
-                {(img.is_synthetic || img.is_demo) && (
+                {(display.is_synthetic || display.is_demo) && (
                   <span className="sat-image-badge" style={{ background: "#8b5cf622", color: "#8b5cf6" }}>
                     Synthetic
                   </span>
                 )}
                 <span className="sat-image-caption">
-                  {img.caption || "Satellite capture"}
+                  {broken.has(img.src)
+                    ? "Capture failed the download — substituting bundled preview"
+                    : (display.caption || "Satellite capture")}
                 </span>
-                {img.source && (
-                  <span className="sat-image-source">Scene: {img.source}</span>
+                {display.source && (
+                  <span className="sat-image-source">Scene: {display.source}</span>
                 )}
               </div>
               <div className="sat-image-expand-hint">

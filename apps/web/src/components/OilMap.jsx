@@ -2,22 +2,41 @@ import React, { useRef, useEffect } from "react";
 import * as maplibregl from "maplibre-gl";
 
 const DEFAULT_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+const SATELLITE_STYLE = {
+  version: 8,
+  sources: {
+    "satellite": {
+      type: "raster",
+      tiles: [
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: "Imagery \u00a9 Esri, Maxar, Earthstar Geographics",
+    },
+  },
+  layers: [{ id: "satellite", type: "raster", source: "satellite" }],
+};
 
 /**
- * Reusable vector map for the workspace panels.
- * Uses MapLibre GL with free OpenFreeMap tiles (no API key needed).
+ * Reusable map for the workspace panels.
+ * Uses MapLibre GL with a free basemap (no API key needed).
  *
- * Layers can be passed as GeoJSON features; the component renders:
- *  - fillPolygon: spill / origin / forecast uncertainty areas
- *  - lineString: median drift path
- *  - point: detection centroid / origin / vessel markers
+ * layers (GeoJSON features): fillPolygon, lineString, point markers.
  *
  * props:
- *  - features: [{ type: 'fill'|'line'|'point', geometry: {...},
- *                  color, id }]
+ *  - features: [{ id, type: 'fill'|'line'|'point', geometry, color, radius }]
  *  - center, initialZoom, height
+ *  - basemap: 'vector' (default) | 'satellite' — satellite shows real earth
+ *    imagery beneath the overlays (true "detection scene").
  */
-export default function OilMap({ features = [], center, initialZoom = 8, height = 300 }) {
+export default function OilMap({
+  features = [],
+  center,
+  initialZoom = 8,
+  height = 300,
+  basemap = "vector",
+}) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
 
@@ -26,7 +45,7 @@ export default function OilMap({ features = [], center, initialZoom = 8, height 
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: DEFAULT_STYLE,
+      style: basemap === "satellite" ? SATELLITE_STYLE : DEFAULT_STYLE,
       center: center || [72.8, 18.9],
       zoom: initialZoom,
       attributionControl: false,

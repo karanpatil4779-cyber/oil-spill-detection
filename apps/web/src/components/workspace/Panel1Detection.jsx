@@ -45,8 +45,9 @@ export default function Panel1Detection({ data, readOnly, onFalsePositive }) {
           <OilMap
             features={buildMapFeatures(data, "detection")}
             center={data.origin_centroid || [72.8, 18.9]}
-            initialZoom={9}
+            initialZoom={10}
             height={260}
+            basemap="satellite"
           />
           <div className="map-caption">
             {detections.length > 0
