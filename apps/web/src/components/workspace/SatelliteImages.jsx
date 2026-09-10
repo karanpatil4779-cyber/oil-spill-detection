@@ -6,27 +6,53 @@ const TYPE_META = {
   ndhi: { label: "NDHI", icon: "\u25b2", color: "#ef4444" },
 };
 
+// Fallback demo previews bundled into the frontend (apps/web/public/satellite-demo).
+// Shown when a run captured no reachable imagery so the panel always renders;
+// they are labelled as synthetic demo renders, never as real captures.
+const DEMO_IMAGES = [
+  {
+    src: "/satellite-demo/demo-sar.png",
+    caption: "SAR backscatter (VV) — dark slick",
+    type: "sar",
+    source: "Bundled demo render (no capture in this run)",
+    is_demo: true,
+    is_synthetic: true,
+  },
+  {
+    src: "/satellite-demo/demo-ndhi.png",
+    caption: "NDHI hydrocarbon index — oil signature",
+    type: "optical",
+    source: "Bundled demo render (no capture in this run)",
+    is_demo: true,
+    is_synthetic: true,
+  },
+];
+
+const REACHABLE = (url) =>
+  /^(https?:|data:|blob:)/.test(url || "") || url.startsWith("/satellite-demo/");
+
 export default function SatelliteImages({ images }) {
   const [expanded, setExpanded] = useState(null);
 
-  if (!images || images.length === 0) {
-    return (
-      <div className="panel-card">
-        <h4>Satellite Imagery</h4>
-        <p className="panel-note">
-          No satellite images were captured for this run. Re-run the pipeline
-          with the <strong>SAR &amp; Optical detection</strong> toggle enabled
-          to fetch or render Sentinel-1/2 imagery for this incident.
-        </p>
-      </div>
-    );
-  }
+  const captureCount = (images || []).filter((img) => REACHABLE(img.src)).length;
+
+  // Use real captures when at least one is reachable; otherwise fall back to
+  // the bundled demo previews so the panel is never empty.
+  const effectiveImages = captureCount > 0 ? images : DEMO_IMAGES;
+  const isFallback = captureCount === 0;
 
   return (
     <div className="panel-card">
-      <h4>Satellite Imagery ({images.length})</h4>
+      <h4>Satellite Imagery{effectiveImages.length ? ` (${effectiveImages.length})` : ""}</h4>
+      {isFallback && (
+        <p className="panel-note">
+          No satellite scene was captured in this run, so bundled demo previews
+          are shown. Re-run with the <strong>SAR &amp; Optical detection</strong>{" "}
+          toggle enabled to capture live Sentinel-1/2 imagery.
+        </p>
+      )}
       <div className="sat-image-strip">
-        {images.map((img, i) => {
+        {effectiveImages.map((img, i) => {
           const meta = TYPE_META[img.type] || TYPE_META.sar;
           return (
             <div
@@ -44,7 +70,7 @@ export default function SatelliteImages({ images }) {
                 <span className="sat-image-badge" style={{ background: `${meta.color}22`, color: meta.color }}>
                   {meta.icon} {meta.label}
                 </span>
-                {img.is_synthetic && (
+                {(img.is_synthetic || img.is_demo) && (
                   <span className="sat-image-badge" style={{ background: "#8b5cf622", color: "#8b5cf6" }}>
                     Synthetic
                   </span>
