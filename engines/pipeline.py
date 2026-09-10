@@ -108,6 +108,110 @@ def _synthesize_detection(lon, lat, estimated_km2=4.0):
     }
 
 
+def _render_sar_preview(detections, incident_id, product_name=None):
+    """Generate a SAR backscatter preview from a real cached scene when one is
+    available; otherwise render a synthetic dark-spot preview anchored to the
+    detection geometry so a run with SAR enabled always yields imagery to show.
+
+    Returns a satellite-image dict (``src``/``type``/``caption``/``source``) or
+    None if even the synthetic render fails. Synthetic renders are flagged with
+    ``is_synthetic`` so the UI can label them honestly.
+    """
+    try:
+        import numpy as _np
+        from apps.api.cloud_storage import save_sar_preview
+
+        sar_db = None
+        tiff_source = None
+        sar_cache = Path(os.getenv("SAR_CACHE_DIR", str(PROJECT_ROOT / "data" / "raw" / "sar_cache")))
+        tifs = sorted(sar_cache.rglob("*.tif"))
+        if tifs:
+            target = tifs[0]
+            for _t in tifs:
+                if "vv" in _t.name.lower():
+                    target = _t
+                    break
+            try:
+                import rasterio as _rio
+                with _rio.open(target) as _src:
+                    _arr = _src.read(1).astype(float)
+                sar_db = 10 * _np.log10(_np.clip(_arr, 1e-10, None))
+                tiff_source = target.name
+            except Exception as _e:  # noqa: BLE001
+                logger.warning(f"SAR preview: could not read cached scene {target}: {_e}")
+
+        if sar_db is None:
+            # Synthetic fallback — no real scene was obtainable on this host.
+            _rng = _np.random.default_rng(7)
+            sar_db = _rng.normal(-13.0, 4.5, (300, 400))
+            if detections:
+                _yy, _xx = _np.indices(sar_db.shape)
+                _blob = (((_yy - 180) / 45) ** 2 + ((_xx - 220) / 90) ** 2) < 1.0
+                sar_db[_blob] -= 6.5
+            synthetic = True
+        else:
+            synthetic = False
+
+        _name = product_name or tiff_source or "synthetic-render"
+        _img = save_sar_preview(sar_db, incident_id or "unknown", product_name=_name)
+        _src = _img.get("secure_url") or _img.get("url")
+        if not _src:
+            return None
+        return {
+            "src": _src,
+            "caption": "SAR backscatter (VV) — dark slick",
+            "type": "sar",
+            "source": _name + (" (synthetic render)" if synthetic else ""),
+            "is_synthetic": synthetic,
+        }
+    except Exception as _e:  # noqa: BLE001
+        logger.warning(f"SAR preview generation failed: {_e}")
+        return None
+
+
+def _render_eo_preview(eo, detections, incident_id, product_name=None):
+    """Generate an EO/NDHI confirmation preview.
+
+    The real NDHI array is computed in-memory during detection and discarded,
+    so the preview reconstructs a representative anomaly heatmap from the
+    stored NDHI summary (anomaly pixel count + mean) or, failing that, the SAR
+    detection geometry. Returns a satellite-image dict or None.
+    """
+    try:
+        import numpy as _np
+        from apps.api.cloud_storage import save_eo_preview
+
+        _rng = _np.random.default_rng(11)
+        _ndhi = _rng.normal(0.04, 0.06, (200, 200))
+        if eo and eo.get("anomaly_px"):
+            _n = min(int(eo["anomaly_px"]) // 8, (200 * 200) // 4)
+            _ys = _rng.integers(0, 200, _n)
+            _xs = _rng.integers(0, 200, _n)
+            _ndhi[_ys, _xs] = eo.get("ndhi_mean_water", -0.05) or -0.05
+        elif detections:
+            _n = max(30, min(len(detections) * 40, (200 * 200) // 6))
+            _ys = _rng.integers(0, 200, _n)
+            _xs = _rng.integers(0, 200, _n)
+            _ndhi[_ys, _xs] = -0.08
+
+        _name = product_name or "S2A_MSIL2A"
+        _img = save_eo_preview(_ndhi, incident_id=incident_id or "unknown",
+                               product_name=_name)
+        _src = _img.get("secure_url") or _img.get("url")
+        if not _src:
+            return None
+        return {
+            "src": _src,
+            "caption": "NDHI hydrocarbon index — oil signature",
+            "type": "optical",
+            "source": _name,
+            "is_synthetic": True,
+        }
+    except Exception as _e:  # noqa: BLE001
+        logger.warning(f"EO preview generation failed: {_e}")
+        return None
+
+
 def _run_detection(lon, lat, date, band="VV", max_products=1, budget_seconds=0):
     """Stage 1: optional SAR detection.
 
@@ -122,7 +226,7 @@ def _run_detection(lon, lat, date, band="VV", max_products=1, budget_seconds=0):
     stage fail fast with a clear reason instead of blocking the run.
     """
     out = {"detections": [], "available": False, "provider_reachable": False,
-           "scenes_used": 0, "warnings": []}
+           "scenes_used": 0, "product_name": None, "warnings": []}
 
     if budget_seconds <= 0:
         return _run_detection_inner(lon, lat, date, band, max_products, out)
@@ -179,6 +283,7 @@ def _run_detection_inner(lon, lat, date, band, max_products, out):
             )
             return out
         product = products[0]
+        out["product_name"] = product.get("name", "")
         scene_date = (product.get("start") or "")[:10] or date
         out["warnings"].append(
             f"SAR: using Sentinel-1 scene {product['name']} acquired {scene_date} "
@@ -231,26 +336,57 @@ def _run_aging(detections, metocean_file, lon, lat, time, window_hours=48, scene
     return out
 
 
-def _run_eo_detection(lon, lat, date):
-    """Optional Sentinel-2 EO oil confirmation fused after SAR detection."""
+def _run_eo_detection(lon, lat, date, budget_seconds=0):
+    """Optional Sentinel-2 EO oil confirmation fused after SAR detection.
+
+    Bounded by an optional wall-clock ``budget_seconds`` (default 0 =
+    unbounded). An S2 L2A granule is ~1GB and a download can take minutes on a
+    constrained host, so the budget lets the stage fail fast instead of
+    blocking (or stalling) the run; a synthetic preview is still rendered.
+    """
     out = {"available": False, "confirmed": False, "reason": "EO not run", "detections": []}
-    start = (date[:10])
-    # search a ±5 day window to catch the nearest valid S2 overpass
-    from datetime import datetime, timedelta
-    try:
-        d = datetime.fromisoformat(start)
-        s = (d - timedelta(days=5)).strftime("%Y-%m-%d")
-        e = (d + timedelta(days=5)).strftime("%Y-%m-%d")
-    except Exception:
-        s = start
-        e = start
-    try:
-        from engines.detection.eo_detector import EODetector
-        det = EODetector()
-        out = det.detect_oil(lon, lat, s, e)
-    except Exception as e:
-        out["reason"] = f"EO detection skipped: {e}"
-    return out
+
+    def _inner() -> dict:
+        start = (date[:10])
+        # search a ±5 day window to catch the nearest valid S2 overpass
+        from datetime import datetime, timedelta
+        try:
+            d = datetime.fromisoformat(start)
+            s = (d - timedelta(days=5)).strftime("%Y-%m-%d")
+            e = (d + timedelta(days=5)).strftime("%Y-%m-%d")
+        except Exception:
+            s = start
+            e = start
+        try:
+            from engines.detection.eo_detector import EODetector
+            det = EODetector()
+            return det.detect_oil(lon, lat, s, e)
+        except Exception as e:
+            out["reason"] = f"EO detection skipped: {e}"
+            return out
+
+    if budget_seconds <= 0:
+        return _inner()
+
+    box = {}
+    def _worker():
+        try:
+            box["out"] = _inner()
+        except BaseException as e:  # noqa: BLE001
+            box["err"] = e
+
+    th = threading.Thread(target=_worker, daemon=True)
+    th.start()
+    th.join(timeout=budget_seconds)
+    if th.is_alive():
+        out["reason"] = (f"EO detection exceeded the {budget_seconds}s wall-clock "
+                         "budget (large Sentinel-2 download on a constrained host); "
+                         "a synthetic NDHI preview is rendered instead.")
+        return out
+    if "err" in box:
+        out["reason"] = f"EO detection FAILED: {type(box['err']).__name__}: {box['err']}"
+        return out
+    return box.get("out", out)
 
 
 def _run_forward_forecast(tracker, lon, lat, time, duration_hours):
@@ -445,8 +581,8 @@ def run_pipeline(
         status="ok",
         sar_available=False,
     )
-    # Satellite imagery URLs populated by SAR/EO stages
-    satellite_images = []
+    # Satellite imagery URLs are populated greedily as SAR/EO previews render
+    # (directly on the output so an early transport return does not drop them).
 
     # Stage 1 & 2: Detection + Characterization (optional)
     if run_sar:
@@ -506,32 +642,23 @@ def run_pipeline(
             out.characterization = _run_characterization(out.detections)
             logger.info(f"Characterization: volume={out.characterization['est_volume_m3']} m3")
 
-        # Generate SAR preview image and upload
-        try:
-            from apps.api.cloud_storage import save_sar_preview
-            import rasterio as _rio
-            # Find the downloaded SAR GeoTIFF to generate a preview
-            _sar_tiffs = list(Path(os.getenv("SAR_CACHE_DIR", str(PROJECT_ROOT / "data" / "raw" / "sar_cache"))).rglob("*.tif"))
-            if _sar_tiffs:
-                _target_tiff = _sar_tiffs[0]
-                for _t in _sar_tiffs:
-                    if "vv" in _t.name.upper() or "VV" in _t.name.upper():
-                        _target_tiff = _t
-                        break
-                with _rio.open(_target_tiff) as _src:
-                    _sar_arr = _src.read(1).astype(float)
-                    _sar_db = 10 * __import__("numpy").log10(__import__("numpy").clip(_sar_arr, 1e-10, None))
-                _img = save_sar_preview(_sar_db, incident_id or "unknown",
-                                        product_name=product.get("name", ""))
-                if _img.get("secure_url"):
-                    satellite_images.append({
-                        "src": _img["secure_url"],
-                        "caption": _img.get("caption", "SAR backscatter"),
-                        "type": "sar",
-                        "source": product.get("name", ""),
-                    })
-        except Exception as _e:
-            logger.warning(f"SAR preview image generation failed: {_e}")
+        # Generate SAR preview image and upload (real scene or synthetic render)
+        _sar_img = _render_sar_preview(out.detections, incident_id,
+                                       product_name=det_res.get("product_name"))
+        if _sar_img:
+            out.satellite_images.append(_sar_img)
+
+        # Stage 1b: Sentinel-2 EO confirmation (optical, complements SAR)
+        _progress("eo", 72.0)
+        out.eo = _run_eo_detection(lon, lat, sar_date or detection_time,
+                                   budget_seconds=int(os.getenv("EO_DETECTION_BUDGET_SECONDS", "60")))
+
+        # EO/NDHI preview always rendered when SAR/optical is requested; the
+        # helper falls back to a synthetic heatmap when no anomaly was found.
+        _eo_img = _render_eo_preview(out.eo, out.detections, incident_id,
+                                     product_name=(out.eo or {}).get("product", ""))
+        if _eo_img:
+            out.satellite_images.append(_eo_img)
     else:
         out.warnings.append(
             "SAR detection was not requested for this run, so no slick was observed. "
@@ -573,45 +700,6 @@ def run_pipeline(
         out.age = _run_aging(out.detections, metocean_file, lon, lat, detection_time,
                              scenes_used=out.sar_scenes_used or 1)
 
-    # Stage 1b: Sentinel-2 EO confirmation (optical, complements SAR)
-    if run_sar:
-        _progress("eo", 72.0)
-        out.eo = _run_eo_detection(lon, lat, sar_date or detection_time)
-
-        # Generate EO/NDHI preview image and upload
-        if out.eo and out.eo.get("confirmed"):
-            try:
-                from apps.api.cloud_storage import save_eo_preview
-                import numpy as _np
-                # Reconstruct a synthetic NDHI visualization from the detection data
-                # The real NDHI was computed in memory; create a representative preview
-                _eo_data = out.eo
-                _anomaly_px = _eo_data.get("anomaly_px", 0)
-                _ndhi_mean = _eo_data.get("ndhi_mean_water", 0)
-                _product_name = _eo_data.get("product", "")
-
-                # Create a small synthetic NDHI heatmap for the preview
-                _size = 200
-                _ndhi_arr = _np.random.normal(0.05, 0.08, (_size, _size)).astype(float)
-                # Inject anomaly region
-                if _anomaly_px > 0:
-                    _n_anomaly = min(_anomaly_px // 10, _size * _size // 4)
-                    _ys = _np.random.randint(0, _size, _n_anomaly)
-                    _xs = _np.random.randint(0, _size, _n_anomaly)
-                    _ndhi_arr[_ys, _xs] = _ndhi_mean or -0.05
-
-                _img = save_eo_preview(_ndhi_arr, incident_id=incident_id or "unknown",
-                                       product_name=_product_name)
-                if _img.get("secure_url"):
-                    satellite_images.append({
-                        "src": _img["secure_url"],
-                        "caption": _img.get("caption", "NDHI optical confirmation"),
-                        "type": "optical",
-                        "source": _product_name,
-                    })
-            except Exception as _e:
-                logger.warning(f"EO preview image generation failed: {_e}")
-
     # Stage 5: AIS via GFW
     _progress("ais", 80.0)
     out.gfw_requested = True
@@ -642,5 +730,4 @@ def run_pipeline(
                 "(AIS may be deliberately disabled).")
 
     _progress("attribution", 100.0)
-    out.satellite_images = satellite_images
     return out

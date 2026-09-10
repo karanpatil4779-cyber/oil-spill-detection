@@ -14,8 +14,9 @@ export default function SatelliteImages({ images }) {
       <div className="panel-card">
         <h4>Satellite Imagery</h4>
         <p className="panel-note">
-          No satellite images were captured for this run. Enable the SAR &amp;
-          Optical detection toggle during the pipeline run to fetch imagery.
+          No satellite images were captured for this run. Re-run the pipeline
+          with the <strong>SAR &amp; Optical detection</strong> toggle enabled
+          to fetch or render Sentinel-1/2 imagery for this incident.
         </p>
       </div>
     );
@@ -43,6 +44,11 @@ export default function SatelliteImages({ images }) {
                 <span className="sat-image-badge" style={{ background: `${meta.color}22`, color: meta.color }}>
                   {meta.icon} {meta.label}
                 </span>
+                {img.is_synthetic && (
+                  <span className="sat-image-badge" style={{ background: "#8b5cf622", color: "#8b5cf6" }}>
+                    Synthetic
+                  </span>
+                )}
                 <span className="sat-image-caption">
                   {img.caption || "Satellite capture"}
                 </span>

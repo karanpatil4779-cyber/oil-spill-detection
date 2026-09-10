@@ -167,6 +167,7 @@ def seed_demo(db, analyst=None, case=None):
                 "type": "sar",
                 "source": "S1A_IW_GRDH_1SDV (synthetic demo)",
                 "is_demo": True,
+                "is_synthetic": True,
             })
         if _eo_img.get("secure_url") or _eo_img.get("url"):
             result["satellite_images"].append({
@@ -175,6 +176,7 @@ def seed_demo(db, analyst=None, case=None):
                 "type": "optical",
                 "source": "S2A_MSIL2A (synthetic demo)",
                 "is_demo": True,
+                "is_synthetic": True,
             })
     except Exception as _e:
         print(f"WARN: demo satellite imagery generation failed: {_e}")
