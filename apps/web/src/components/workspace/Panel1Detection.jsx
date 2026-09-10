@@ -2,6 +2,7 @@ import React from "react";
 import { formatConfidence } from "../../utils/formatters";
 import OilMap from "../OilMap";
 import { buildMapFeatures } from "../../utils/mapFeatures";
+import SatelliteImages from "./SatelliteImages";
 
 /**
  * Panel 1 — Detection result.
@@ -53,6 +54,8 @@ export default function Panel1Detection({ data, readOnly, onFalsePositive }) {
               : "No slick was detected — the marker is the operator-entered position, not an observation"}
           </div>
         </div>
+
+        <SatelliteImages images={data.satellite_images || []} />
 
         <div className="panel-card">
           <h4>Decision Assessment</h4>

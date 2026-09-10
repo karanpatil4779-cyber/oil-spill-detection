@@ -21,4 +21,6 @@ scipy
 python-jose[cryptography]
 passlib[bcrypt]
 python-multipart
-pydantic[email]
+pydantic[email]cloudinary
+pillow
+matplotlib

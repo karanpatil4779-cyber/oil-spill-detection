@@ -16,3 +16,5 @@ _deltest.txt
 .DS_Store
 
 token.json
+
+data/satellite_images/

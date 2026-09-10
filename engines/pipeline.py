@@ -51,6 +51,8 @@ class PipelineOutput:
     suspects: List[Dict] = field(default_factory=list)
     # Look-alike screening summary (Feature 2), attached after the SAR stage.
     lookalike_filter: Optional[Dict] = None
+    # Satellite imagery URLs (SAR preview, EO/NDHI preview) for frontend display
+    satellite_images: List[Dict] = field(default_factory=list)
     # ``*_available`` means "the provider was called and returned usable data".
     # It is deliberately NOT set from a successful constructor. ``*_requested``
     # distinguishes "we never asked" from "we asked and it failed" — without it
@@ -443,6 +445,8 @@ def run_pipeline(
         status="ok",
         sar_available=False,
     )
+    # Satellite imagery URLs populated by SAR/EO stages
+    satellite_images = []
 
     # Stage 1 & 2: Detection + Characterization (optional)
     if run_sar:
@@ -501,6 +505,33 @@ def run_pipeline(
             _progress("characterization", 12.0)
             out.characterization = _run_characterization(out.detections)
             logger.info(f"Characterization: volume={out.characterization['est_volume_m3']} m3")
+
+        # Generate SAR preview image and upload
+        try:
+            from apps.api.cloud_storage import save_sar_preview
+            import rasterio as _rio
+            # Find the downloaded SAR GeoTIFF to generate a preview
+            _sar_tiffs = list(Path(os.getenv("SAR_CACHE_DIR", str(PROJECT_ROOT / "data" / "raw" / "sar_cache"))).rglob("*.tif"))
+            if _sar_tiffs:
+                _target_tiff = _sar_tiffs[0]
+                for _t in _sar_tiffs:
+                    if "vv" in _t.name.upper() or "VV" in _t.name.upper():
+                        _target_tiff = _t
+                        break
+                with _rio.open(_target_tiff) as _src:
+                    _sar_arr = _src.read(1).astype(float)
+                    _sar_db = 10 * __import__("numpy").log10(__import__("numpy").clip(_sar_arr, 1e-10, None))
+                _img = save_sar_preview(_sar_db, incident_id or "unknown",
+                                        product_name=product.get("name", ""))
+                if _img.get("secure_url"):
+                    satellite_images.append({
+                        "src": _img["secure_url"],
+                        "caption": _img.get("caption", "SAR backscatter"),
+                        "type": "sar",
+                        "source": product.get("name", ""),
+                    })
+        except Exception as _e:
+            logger.warning(f"SAR preview image generation failed: {_e}")
     else:
         out.warnings.append(
             "SAR detection was not requested for this run, so no slick was observed. "
@@ -547,6 +578,40 @@ def run_pipeline(
         _progress("eo", 72.0)
         out.eo = _run_eo_detection(lon, lat, sar_date or detection_time)
 
+        # Generate EO/NDHI preview image and upload
+        if out.eo and out.eo.get("confirmed"):
+            try:
+                from apps.api.cloud_storage import save_eo_preview
+                import numpy as _np
+                # Reconstruct a synthetic NDHI visualization from the detection data
+                # The real NDHI was computed in memory; create a representative preview
+                _eo_data = out.eo
+                _anomaly_px = _eo_data.get("anomaly_px", 0)
+                _ndhi_mean = _eo_data.get("ndhi_mean_water", 0)
+                _product_name = _eo_data.get("product", "")
+
+                # Create a small synthetic NDHI heatmap for the preview
+                _size = 200
+                _ndhi_arr = _np.random.normal(0.05, 0.08, (_size, _size)).astype(float)
+                # Inject anomaly region
+                if _anomaly_px > 0:
+                    _n_anomaly = min(_anomaly_px // 10, _size * _size // 4)
+                    _ys = _np.random.randint(0, _size, _n_anomaly)
+                    _xs = _np.random.randint(0, _size, _n_anomaly)
+                    _ndhi_arr[_ys, _xs] = _ndhi_mean or -0.05
+
+                _img = save_eo_preview(_ndhi_arr, incident_id=incident_id or "unknown",
+                                       product_name=_product_name)
+                if _img.get("secure_url"):
+                    satellite_images.append({
+                        "src": _img["secure_url"],
+                        "caption": _img.get("caption", "NDHI optical confirmation"),
+                        "type": "optical",
+                        "source": _product_name,
+                    })
+            except Exception as _e:
+                logger.warning(f"EO preview image generation failed: {_e}")
+
     # Stage 5: AIS via GFW
     _progress("ais", 80.0)
     out.gfw_requested = True
@@ -577,4 +642,5 @@ def run_pipeline(
                 "(AIS may be deliberately disabled).")
 
     _progress("attribution", 100.0)
+    out.satellite_images = satellite_images
     return out

@@ -39,149 +39,191 @@ def seed_demo(db, analyst=None, case=None):
         print("No case found")
         return False
 
-result = {
-    "is_demo": True,
-    "demo_notice": DEMO_NOTICE,
-    "incident_id": case.case_number,
-    "status": "completed",
-    "origin_centroid": [72.75, 18.92],
-    "origin_bbox": [72.65, 18.82, 72.85, 19.02],
-    "detections": [],
-    "characterization": {
-        "slick_count": 2,
-        "total_area_km2": 4.32,
-        "est_volume_m3": 156.7,
-        "est_volume_barrels": 986.0,
-        "likely_oil_type": "Crude Oil / Heavy Fuel",
-        "per_slick": [
-            {"area_km2": 2.8, "est_volume_m3": 102.3, "est_volume_barrels": 643.8, "bbox_geo": [72.7, 18.88, 72.78, 18.95]},
-            {"area_km2": 1.52, "est_volume_m3": 54.4, "est_volume_barrels": 342.2, "bbox_geo": [72.72, 18.90, 72.79, 18.97]}
-        ]
-    },
-    "age": {
-        "age_hours": 14.5,
-        "age_min_hours": 10.0,
-        "age_max_hours": 19.0,
-        "confidence": 0.72,
-        "stage_label": "Fresh-Sheen",
-        "method": "SAR-contrast + wind-corrected",
-        "mean_wind_ms": 5.8
-    },
-    "eo": {
-        "confirmed": True,
-        "ndhi_mean_water": 0.12,
-        "anomaly_px": 342,
-        "reason": "NDHI anomaly above threshold in SWIR bands"
-    },
-    "forecast": {
-        "centroid": [72.78, 18.88],
-        "bbox": [72.60, 18.70, 72.96, 19.06],
-        "spread_deg": [0.18, 0.16],
-        "confidence": 0.65,
-        "median_path": [[72.75, 18.92], [72.76, 18.90], [72.78, 18.88], [72.80, 18.85], [72.82, 18.82]]
-    },
-    "suspects": [
-        {
-            "mmsi": 419000123,
-            "vessel_name": "MT Raavi",
-            "ship_type": "Oil Tanker",
-            "cargo_type": "Crude Oil",
-            "flag": "India",
-            "attribution_score": 0.847,
-            "match_count": 14,
-            "last_seen": "2018-01-30T08:30:00",
-            "avg_lon": 72.74,
-            "avg_lat": 18.93,
-            "anomaly_score": 0.71,
-            "evidence": "Loitering in origin zone, 3.2h dwell",
-            "factors": {"proximity": 0.92, "duration": 0.78, "cargo": 0.85, "behaviour": 0.71}
+    result = {
+        "is_demo": True,
+        "demo_notice": DEMO_NOTICE,
+        "incident_id": case.case_number,
+        "status": "completed",
+        "origin_centroid": [72.75, 18.92],
+        "origin_bbox": [72.65, 18.82, 72.85, 19.02],
+        "detections": [],
+        "characterization": {
+            "slick_count": 2,
+            "total_area_km2": 4.32,
+            "est_volume_m3": 156.7,
+            "est_volume_barrels": 986.0,
+            "likely_oil_type": "Crude Oil / Heavy Fuel",
+            "per_slick": [
+                {"area_km2": 2.8, "est_volume_m3": 102.3, "est_volume_barrels": 643.8, "bbox_geo": [72.7, 18.88, 72.78, 18.95]},
+                {"area_km2": 1.52, "est_volume_m3": 54.4, "est_volume_barrels": 342.2, "bbox_geo": [72.72, 18.90, 72.79, 18.97]}
+            ]
         },
-        {
-            "mmsi": 419000456,
-            "vessel_name": "MV Pacific Star",
-            "ship_type": "Bulk Carrier",
-            "cargo_type": "Dry Bulk",
-            "flag": "Panama",
-            "attribution_score": 0.523,
-            "match_count": 8,
-            "last_seen": "2018-01-30T06:15:00",
-            "avg_lon": 72.71,
-            "avg_lat": 18.96,
-            "anomaly_score": 0.35,
-            "evidence": "Passing through, normal speed",
-            "factors": {"proximity": 0.65, "duration": 0.42, "cargo": 0.30, "behaviour": 0.35}
+        "age": {
+            "age_hours": 14.5,
+            "age_min_hours": 10.0,
+            "age_max_hours": 19.0,
+            "confidence": 0.72,
+            "stage_label": "Fresh-Sheen",
+            "method": "SAR-contrast + wind-corrected",
+            "mean_wind_ms": 5.8
         },
-        {
-            "mmsi": 419000789,
-            "vessel_name": "INS Betwa",
-            "ship_type": "Naval Vessel",
-            "cargo_type": "N/A",
-            "flag": "India",
-            "attribution_score": 0.291,
-            "match_count": 3,
-            "last_seen": "2018-01-30T10:00:00",
-            "avg_lon": 72.82,
-            "avg_lat": 18.85,
-            "anomaly_score": 0.12,
-            "evidence": "No anomalous behaviour detected",
-            "factors": {"proximity": 0.40, "duration": 0.15, "cargo": 0.10, "behaviour": 0.12}
-        }
-    ],
-    "sar_available": True,
-    "sar_requested": False,
-    "sar_scenes_used": 0,
-    "gfw_available": True,
-    "gfw_requested": True,
-    "origin_std_dev": [0.06, 0.055],
-    "provider_status": {"sar": "not_requested", "gfw": "ok", "transport": "ok"},
-    "warnings": ["Metocean ERA5 wind field shows variable directions - transport model uncertainty elevated"]
-}
+        "eo": {
+            "confirmed": True,
+            "ndhi_mean_water": 0.12,
+            "anomaly_px": 342,
+            "reason": "NDHI anomaly above threshold in SWIR bands"
+        },
+        "forecast": {
+            "centroid": [72.78, 18.88],
+            "bbox": [72.60, 18.70, 72.96, 19.06],
+            "spread_deg": [0.18, 0.16],
+            "confidence": 0.65,
+            "median_path": [[72.75, 18.92], [72.76, 18.90], [72.78, 18.88], [72.80, 18.85], [72.82, 18.82]]
+        },
+        "suspects": [
+            {
+                "mmsi": 419000123,
+                "vessel_name": "MT Raavi",
+                "ship_type": "Oil Tanker",
+                "cargo_type": "Crude Oil",
+                "flag": "India",
+                "attribution_score": 0.847,
+                "match_count": 14,
+                "last_seen": "2018-01-30T08:30:00",
+                "avg_lon": 72.74,
+                "avg_lat": 18.93,
+                "anomaly_score": 0.71,
+                "evidence": "Loitering in origin zone, 3.2h dwell",
+                "factors": {"proximity": 0.92, "duration": 0.78, "cargo": 0.85, "behaviour": 0.71}
+            },
+            {
+                "mmsi": 419000456,
+                "vessel_name": "MV Pacific Star",
+                "ship_type": "Bulk Carrier",
+                "cargo_type": "Dry Bulk",
+                "flag": "Panama",
+                "attribution_score": 0.523,
+                "match_count": 8,
+                "last_seen": "2018-01-30T06:15:00",
+                "avg_lon": 72.71,
+                "avg_lat": 18.96,
+                "anomaly_score": 0.35,
+                "evidence": "Passing through, normal speed",
+                "factors": {"proximity": 0.65, "duration": 0.42, "cargo": 0.30, "behaviour": 0.35}
+            },
+            {
+                "mmsi": 419000789,
+                "vessel_name": "INS Betwa",
+                "ship_type": "Naval Vessel",
+                "cargo_type": "N/A",
+                "flag": "India",
+                "attribution_score": 0.291,
+                "match_count": 3,
+                "last_seen": "2018-01-30T10:00:00",
+                "avg_lon": 72.82,
+                "avg_lat": 18.85,
+                "anomaly_score": 0.12,
+                "evidence": "No anomalous behaviour detected",
+                "factors": {"proximity": 0.40, "duration": 0.15, "cargo": 0.10, "behaviour": 0.12}
+            }
+        ],
+        "sar_available": True,
+        "sar_requested": False,
+        "sar_scenes_used": 0,
+        "gfw_available": True,
+        "gfw_requested": True,
+        "origin_std_dev": [0.06, 0.055],
+        "provider_status": {"sar": "not_requested", "gfw": "ok", "transport": "ok"},
+        "warnings": ["Metocean ERA5 wind field shows variable directions - transport model uncertainty elevated"]
+    }
 
-# Every suspect carries the marker too: vessel rows are frequently exported,
-# screenshotted or pasted into a report on their own, away from the case header
-# where the badge lives.
-for _s in result["suspects"]:
-    _s["is_demo"] = True
-    _s["position_known"] = True
-    _s["position_source"] = "synthetic_fixture"
+    # Demo satellite imagery (SAR + EO/NDHI previews) so the Detection panel
+    # has imagery to display. These are synthetic renderings from the
+    # cloud_storage helper — they demo the storage/display chain, not real
+    # satellite data.
+    try:
+        from apps.api.cloud_storage import save_sar_preview, save_eo_preview
+        import numpy as _np
 
-# Compute the verdict with the same code path a real run uses, rather than
-# hardcoding a confidence the pipeline would never emit. The previous value
-# (0.72) was copied from age.confidence and was not a detection confidence.
-from engines.assessment import summarize, stored_confidence
-summarize(result)
-_provider_status = {"sar": "not_requested", "gfw": "ok", "transport": "ok"}
-result["provider_status"] = _provider_status
+        _rng = _np.random.default_rng(7)
+        _sar_arr = _rng.normal(-13.0, 5.0, (300, 400))
+        _yy, _xx = _np.indices(_sar_arr.shape)
+        _slick = (((_yy - 180) / 40) ** 2 + ((_xx - 220) / 70) ** 2) < 1.0
+        _sar_arr[_slick] -= 7.0
 
-case.pipeline_result = result
-case.overall_confidence = stored_confidence(result)
-case.status = "pending_review"
+        _eo_arr = _rng.normal(0.02, 0.05, (220, 280))
+        _ey, _ex = _np.indices(_eo_arr.shape)
+        _spill = (((_ey - 120) / 30) ** 2 + ((_ex - 150) / 50) ** 2) < 1.0
+        _eo_arr[_spill] = -0.09
 
-db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="case_created", detail={"location": "Mumbai Harbour"}))
-db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="pipeline_run", detail={"triggered": True}))
-db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="rank_override", detail={"vessel_id": "419000123", "new_rank": 1, "justification": "Highest proximity + dwell time match"}))
-db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="status_change", detail={"from": "in_progress", "to": "pending_review"}))
+        _inc = case.case_number
+        _sar_img = save_sar_preview(_sar_arr, _inc, product_name="S1A_IW_GRDH_1SDV_DEMO")
+        _eo_img = save_eo_preview(_eo_arr, _inc, product_name="S2A_MSIL2A_DEMO")
+        result["satellite_images"] = []
+        if _sar_img.get("secure_url") or _sar_img.get("url"):
+            result["satellite_images"].append({
+                "src": _sar_img["secure_url"] or _sar_img["url"],
+                "caption": "SAR backscatter (VV) — dark slick overlaid",
+                "type": "sar",
+                "source": "S1A_IW_GRDH_1SDV (synthetic demo)",
+                "is_demo": True,
+            })
+        if _eo_img.get("secure_url") or _eo_img.get("url"):
+            result["satellite_images"].append({
+                "src": _eo_img["secure_url"] or _eo_img["url"],
+                "caption": "NDHI hydrocarbon index — optics confirmation",
+                "type": "optical",
+                "source": "S2A_MSIL2A (synthetic demo)",
+                "is_demo": True,
+            })
+    except Exception as _e:
+        print(f"WARN: demo satellite imagery generation failed: {_e}")
 
-db.commit()
-print(f"Case {case.case_number} updated with mock pipeline data")
-print(f"Status: {case.status}, Confidence: {case.overall_confidence}")
-print(f"Suspects: {len(result['suspects'])}")
+    # Every suspect carries the marker too: vessel rows are frequently exported,
+    # screenshotted or pasted into a report on their own, away from the case header
+    # where the badge lives.
+    for _s in result["suspects"]:
+        _s["is_demo"] = True
+        _s["position_known"] = True
+        _s["position_source"] = "synthetic_fixture"
 
-# Also create a second case (in_progress, no pipeline yet)
-case2 = Case(
-    case_number="INC-2026-0003",
-    analyst_id=analyst.id,
-    status="in_progress",
-    location_name="Chennai Coast",
-    lon=80.35,
-    lat=13.28,
-    detection_date="2017-03-10",
-    duration_hours=48,
-)
-db.add(case2)
-db.commit()
-print(f"Case {case2.case_number} created (no pipeline yet)")
-return True
+    # Compute the verdict with the same code path a real run uses, rather than
+    # hardcoding a confidence the pipeline would never emit. The previous value
+    # (0.72) was copied from age.confidence and was not a detection confidence.
+    from engines.assessment import summarize, stored_confidence
+    summarize(result)
+    _provider_status = {"sar": "not_requested", "gfw": "ok", "transport": "ok"}
+    result["provider_status"] = _provider_status
+
+    case.pipeline_result = result
+    case.overall_confidence = stored_confidence(result)
+    case.status = "pending_review"
+
+    db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="case_created", detail={"location": "Mumbai Harbour"}))
+    db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="pipeline_run", detail={"triggered": True}))
+    db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="rank_override", detail={"vessel_id": "419000123", "new_rank": 1, "justification": "Highest proximity + dwell time match"}))
+    db.add(AuditLogEntry(case_id=case.id, actor_id=analyst.id, action_type="status_change", detail={"from": "in_progress", "to": "pending_review"}))
+
+    db.commit()
+    print(f"Case {case.case_number} updated with mock pipeline data")
+    print(f"Status: {case.status}, Confidence: {case.overall_confidence}")
+    print(f"Suspects: {len(result['suspects'])}")
+
+    # Also create a second case (in_progress, no pipeline yet)
+    case2 = Case(
+        case_number="INC-2026-0003",
+        analyst_id=analyst.id,
+        status="in_progress",
+        location_name="Chennai Coast",
+        lon=80.35,
+        lat=13.28,
+        detection_date="2017-03-10",
+        duration_hours=48,
+    )
+    db.add(case2)
+    db.commit()
+    print(f"Case {case2.case_number} created (no pipeline yet)")
+    return True
 
 
 if __name__ == "__main__":
