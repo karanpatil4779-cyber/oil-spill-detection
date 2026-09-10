@@ -345,6 +345,7 @@ def _execute_run(run_id: str):
         "origin_std_dev": getattr(out, "origin_std_dev", None),
         "origin_zone": getattr(out, "origin_zone", None),
         "lookalike_filter": getattr(out, "lookalike_filter", None),
+        "satellite_images": getattr(out, "satellite_images", []),
         "warnings": out.warnings,
     }
     # Provider status must separate "never asked" from "asked and failed".
